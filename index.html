@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>WoodMood</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    /* ── Base ── */
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:linear-gradient(135deg,#5C2E00 0%,#8B4513 50%,#D2691E 100%);
+      min-height:100vh;padding:12px;
+    }
+    .wrap{max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+
+    /* ── Cards ── */
+    .card{background:#fff;border-radius:18px;padding:18px;box-shadow:0 4px 20px rgba(0,0,0,.35)}
+    .card-warm{background:#CD853F;color:#fff;border-radius:18px;padding:18px;box-shadow:0 4px 20px rgba(0,0,0,.35)}
+
+    /* ── Header ── */
+    .logo{font-size:1.6rem;font-weight:700;color:#fff;text-shadow:0 2px 6px rgba(0,0,0,.5)}
+    .status-badge{display:flex;align-items:center;gap:7px;font-size:.82rem;color:#fff;
+      background:rgba(0,0,0,.3);border-radius:20px;padding:6px 14px;cursor:pointer}
+    .status-dot{width:11px;height:11px;border-radius:50%;background:#e74c3c;
+      transition:background .4s;flex-shrink:0}
+    .status-dot.connecting{background:#f39c12;animation:blink .8s infinite alternate}
+    .status-dot.connected {background:#f39c12}        /* orange = MQTT ok, no heartbeat */
+    .status-dot.alive     {background:#2ecc71;animation:hbpulse 1.2s infinite} /* green = heartbeat */
+    @keyframes blink   {to{opacity:.3}}
+    @keyframes hbpulse {50%{opacity:.4}}
+
+    /* ── Connection panel ── */
+    .conn-input{padding:9px 12px;border:1px solid #d0b08a;border-radius:8px;font-size:.9rem;width:100%}
+    .conn-input:focus{outline:none;border-color:#8B4513}
+
+    /* ── System state button ── */
+    .sys-btn{width:100%;border:none;border-radius:12px;font-size:1rem;font-weight:700;
+      padding:14px;letter-spacing:.03em;transition:filter .15s}
+    .sys-btn.startup  {background:#d4a04a;color:#fff;cursor:pointer}
+    .sys-btn.startup:hover{filter:brightness(1.08)}
+    .sys-btn.auto     {background:#27ae60;color:#fff;cursor:pointer}
+    .sys-btn.auto:hover{filter:brightness(1.08)}
+    .sys-btn.cooldown {background:#2980b9;color:#fff;cursor:pointer}
+    .sys-btn.cooldown:hover{filter:brightness(1.1)}
+    .sys-btn.standby  {background:#7f8c8d;color:#fff;cursor:pointer}
+    .sys-btn.standby:hover{filter:brightness(1.1)}
+    .sys-btn.fault    {background:#c0392b;color:#fff;cursor:default;
+      animation:faultpulse 2s infinite alternate}
+    @keyframes faultpulse{to{background:#922b21}}
+
+    /* ── Fault banner ── */
+    #fault-banner{display:none;background:#c0392b;color:#fff;border-radius:18px;
+      padding:18px;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+    #fault-banner.show{display:block}
+    .fault-title{font-size:1.05rem;font-weight:700;margin-bottom:6px}
+    .fault-side-badge{display:inline-block;background:rgba(255,255,255,.2);border-radius:8px;padding:3px 10px;font-size:.8rem;font-weight:600;margin-bottom:8px;letter-spacing:.04em}
+    .fault-msg{font-size:.84rem;opacity:.85;margin-bottom:10px}
+    .btn-countdown{background:rgba(255,255,255,.2);color:#fff;border:2px solid rgba(255,255,255,.4);cursor:default;font-size:.95rem}
+    .fault-resolve-group{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+    .btn-resolve{background:#27ae60;font-size:1rem;font-weight:700}
+    .btn-reopen{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.4);font-size:.82rem}
+
+    /* ── Buttons ── */
+    .btn{border:none;border-radius:10px;font-size:.9rem;font-weight:600;
+      cursor:pointer;padding:10px 14px;transition:filter .15s;flex:1}
+    .btn:hover{filter:brightness(1.1)}
+    .btn:active{filter:brightness(.9)}
+    .btn-brown {background:#8B4513;color:#fff}
+    .btn-green {background:#28a745;color:#fff}
+    .btn-red   {background:#dc3545;color:#fff}
+    .btn-orange{background:#e67e22;color:#fff}
+    .btn-blue  {background:#2980b9;color:#fff}
+    .btn-gray  {background:#7f8c8d;color:#fff}
+    .btn-sm    {padding:7px 10px;font-size:.82rem}
+    .btn-full  {width:100%}
+    .row-btns  {display:flex;gap:8px}
+
+    /* ── Temperature card ── */
+    .adj-btn{width:44px;height:44px;font-size:1.3rem;padding:0;border-radius:10px;
+      border:none;background:#8B4513;color:#fff;cursor:pointer;flex-shrink:0;
+      font-weight:700;transition:filter .15s}
+    .adj-btn:hover{filter:brightness(1.1)}
+    /* Main pair — current room temp + wanted temp */
+    .main-temps-row{display:flex;margin-bottom:10px}
+    .main-temp-half{flex:1;display:flex;flex-direction:column;align-items:center;
+      justify-content:center;padding:8px 6px}
+    .main-temp-half+.main-temp-half{border-left:1px solid rgba(255,255,255,.25)}
+    .wanted-controls{display:flex;align-items:center;gap:10px}
+    #room-val{font-size:2.6rem;font-weight:700;line-height:1;min-width:70px;text-align:center}
+    .temp-big{font-size:2.6rem;font-weight:700;line-height:1}
+    .temp-small-label{font-size:.65rem;opacity:.65;margin-top:6px;line-height:1.35;
+      text-transform:uppercase;letter-spacing:.04em}
+    /* Stove internals — de-emphasised technical row */
+    .stove-tech-row{display:flex;align-items:center;justify-content:center;gap:6px;
+      border-top:1px solid rgba(255,255,255,.18);padding-top:9px;
+      font-size:.75rem;opacity:.5;letter-spacing:.02em}
+
+    /* ── Log cartridges ── */
+    .cart-grid{display:grid;grid-template-columns:1fr 56px 1fr;gap:0;align-items:start}
+    .cart-col{display:flex;flex-direction:column;align-items:center;gap:5px}
+    .cart-col.left {border-right:1px solid #f0e0d0;padding-right:10px}
+    .cart-col.right{border-left: 1px solid #f0e0d0;padding-left: 10px}
+    .cart-title{font-size:.75rem;font-weight:700;color:#666;text-transform:uppercase;
+      letter-spacing:.06em;margin-bottom:2px}
+    .bars{display:flex;flex-direction:column-reverse;gap:5px;align-items:center;
+      min-height:186px;justify-content:flex-start;padding-top:2px;width:100%}
+    .bar{width:100%;height:26px;border-radius:6px;background:#8B7355;transition:opacity .4s}
+    .bar.empty{background:transparent;border:2px dashed #d9c8b8}
+    .cart-count{font-size:.9rem;font-weight:700;color:#8B4513}
+    .cart-btn-stack{display:flex;flex-direction:column;gap:5px;width:100%;margin-top:4px}
+    .cart-btn-stack .btn{font-size:.76rem;padding:8px 4px;width:100%;flex:none}
+    .time-col{display:flex;flex-direction:column;align-items:center;justify-content:center;
+      padding:12px 0;color:#8B4513}
+    .time-label{font-size:.6rem;font-weight:700;text-transform:uppercase;
+      letter-spacing:.06em;color:#aaa;margin-bottom:5px;text-align:center}
+    .time-val{font-size:1.15rem;font-weight:700;color:#8B4513;text-align:center}
+    .time-unit{font-size:.64rem;color:#bbb;text-align:center}
+
+    /* ── Settings ── */
+    .settings-toggle{display:flex;align-items:center;justify-content:space-between;
+      cursor:pointer;user-select:none}
+    .settings-toggle .arrow{transition:transform .25s;font-size:.9rem;color:#8B4513}
+    .settings-toggle .arrow.open{transform:rotate(180deg)}
+    .settings-body{display:none;margin-top:14px;border-top:1px solid #f0e0d0;
+      padding-top:16px;flex-direction:column;gap:18px}
+    .settings-body.open{display:flex}
+    .settings-section{font-size:.72rem;color:#bbb;font-weight:700;text-transform:uppercase;
+      letter-spacing:.08em;margin-bottom:8px}
+    /* Alert rows */
+    .alert-row{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center;
+      padding:10px;background:#f9f5f1;border-radius:10px}
+    .alert-fields{display:flex;flex-direction:column;gap:5px}
+    .alert-fields input{padding:7px 10px;border:1px solid #d0b08a;border-radius:7px;
+      font-size:.84rem;width:100%}
+    .alert-fields input:focus{outline:none;border-color:#8B4513}
+    input[type=checkbox]{width:19px;height:19px;accent-color:#8B4513;cursor:pointer;
+      margin-left:4px}
+    /* Maintenance rows */
+    .maint-row{display:flex;align-items:center;gap:8px;padding:9px 12px;
+      background:#f9f5f1;border-radius:10px;font-size:.88rem;color:#555}
+    .maint-lbl{flex:1}
+    .maint-val{font-weight:700;color:#8B4513;white-space:nowrap}
+    /* House params */
+    .param-row{display:flex;align-items:center;gap:8px}
+    .param-row label{font-size:.82rem;color:#555;white-space:nowrap}
+    .param-row input[type=number]{flex:1;padding:7px 10px;border:1px solid #d0b08a;
+      border-radius:7px;font-size:.9rem}
+    .param-row input:focus{outline:none;border-color:#8B4513}
+    .ins-wrap{display:flex;gap:6px;margin-top:2px}
+    .ins-btn{border:2px solid #d0b08a;background:#fff;border-radius:8px;padding:7px 14px;
+      font-size:.82rem;cursor:pointer;color:#666;transition:all .15s;font-weight:500}
+    .ins-btn.active{border-color:#8B4513;background:#8B4513;color:#fff;font-weight:700}
+
+    /* ── Offline overlay ── */
+    #offline-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);
+      z-index:100;align-items:center;justify-content:center}
+    #offline-overlay.show{display:flex}
+    .offline-box{background:#fff;border-radius:18px;padding:24px;max-width:300px;text-align:center}
+    .offline-box h2{color:#c0392b;margin-bottom:8px}
+    .offline-box p{font-size:.88rem;color:#555;margin-bottom:16px}
+
+    /* ── Misc ── */
+    .section-title{font-size:.75rem;font-weight:700;color:#8B4513;text-transform:uppercase;
+      letter-spacing:.07em;margin-bottom:12px}
+    .divider{border:none;border-top:1px solid #f0e0d0;margin:0}
+
+    /* ── Technical Mode ── */
+    .tech-sec{font-size:.68rem;font-weight:800;color:#8B4513;text-transform:uppercase;
+      letter-spacing:.12em;border-bottom:2px solid #f0e0d0;padding-bottom:6px;margin-bottom:12px}
+    .tech-field-lbl{font-size:.78rem;color:#888;margin-bottom:5px}
+    .tech-input{width:100%;padding:9px 12px;border:1px solid #d0b08a;border-radius:8px;
+      font-size:.95rem;box-sizing:border-box}
+    .tech-input:focus{outline:none;border-color:#8B4513}
+    .tech-manual-block{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+    /* Toggle switch */
+    .toggle-wrap{display:flex;align-items:center;justify-content:space-between}
+    .toggle-label{font-size:.88rem;color:#444}
+    .tgl{position:relative;display:inline-block;width:48px;height:27px;flex-shrink:0}
+    .tgl input{opacity:0;width:0;height:0}
+    .tgl-sl{position:absolute;cursor:pointer;inset:0;background:#ccc;border-radius:27px;transition:.25s}
+    .tgl-sl:before{content:"";position:absolute;height:21px;width:21px;left:3px;bottom:3px;
+      background:#fff;border-radius:50%;transition:.25s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+    input:checked + .tgl-sl{background:#27ae60}
+    input:checked + .tgl-sl:before{transform:translateX(21px)}
+    /* Side selector */
+    .side-sel{display:flex;background:#f5e8da;border-radius:10px;padding:3px;gap:3px;margin-bottom:4px}
+    .side-opt{flex:1;text-align:center;padding:9px 6px;border-radius:8px;font-weight:700;
+      font-size:.9rem;cursor:pointer;transition:background .2s,color .2s;color:#8B4513;user-select:none}
+    .side-opt.active{background:#8B4513;color:#fff}
+    /* Small badge shown next to section headers that use active side */
+    .side-badge{display:inline-block;background:#8B4513;color:#fff;border-radius:4px;
+      font-size:.6rem;padding:1px 7px;margin-left:7px;vertical-align:middle;letter-spacing:.03em}
+    .gap-col{display:flex;flex-direction:column;gap:8px}
+
+    /* ── Toast ── */
+    #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+      background:#2b1a0e;color:#f0d9c0;padding:10px 20px;border-radius:20px;
+      font-size:.84rem;font-weight:600;opacity:0;pointer-events:none;
+      transition:opacity .3s;z-index:200;white-space:nowrap}
+    #toast.show{opacity:1}
+
+    /* ── Simulate button ── */
+    .btn-sim{background:#4a3728;color:#f0d9c0;border:2px dashed #8B7355}
+
+    /* ── Heap monitor ── */
+    .heap-row{display:flex;align-items:center;gap:10px;padding:7px 12px;
+      background:rgba(0,0,0,.28);border-radius:10px;font-size:.72rem;
+      color:rgba(255,255,255,.75)}
+    .heap-lbl{opacity:.7;white-space:nowrap}
+    .heap-bar-wrap{flex:1;background:rgba(255,255,255,.18);border-radius:4px;height:5px;overflow:hidden}
+    .heap-bar-fill{height:100%;border-radius:4px;transition:width .6s,background .6s;background:#2ecc71;width:0%}
+    .heap-val{font-weight:700;white-space:nowrap;min-width:48px;text-align:right}
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ── Header ── -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 2px">
+    <div class="logo">WoodMood</div>
+    <div class="status-badge" onclick="toggleConnPanel()">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-label">Déconnecté</span>
+    </div>
+  </div>
+
+  <!-- ── Connection panel ── -->
+  <div class="card" id="conn-card">
+    <div class="section-title">Connexion au courtier</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <input class="conn-input" id="cfg-broker" placeholder="Courtier  ex. abc123.s1.eu.hivemq.cloud"/>
+      <input class="conn-input" id="cfg-user"   placeholder="Nom d'utilisateur"/>
+      <input class="conn-input" id="cfg-pass"   placeholder="Mot de passe" type="password"/>
+      <input class="conn-input" id="cfg-serial" placeholder="Numéro de série  ex. JJQF9D"/>
+      <button class="btn btn-brown btn-full" onclick="saveAndConnect()">Connecter</button>
+    </div>
+  </div>
+
+  <!-- ── System state ── -->
+  <div id="sys-state-card" class="card" style="padding:12px">
+    <button class="sys-btn startup" id="sys-btn" onclick="sysButtonClick()">Démarrage</button>
+  </div>
+
+  <!-- ── Fault banner ── -->
+  <div id="fault-banner">
+    <div class="fault-title">⚠️ DÉFAUT DÉTECTÉ</div>
+    <div class="fault-side-badge" id="fault-side-badge">— Côté</div>
+    <div class="fault-msg" id="fault-msg-text">Bûche coincée dans la trappe — suivez les étapes ci-dessous</div>
+    <!-- Phase 1: unlock door -->
+    <div id="fault-phase-1">
+      <button class="btn btn-orange btn-full" onclick="faultUnlockDoor()">
+        🔓 Déverrouiller la porte <span class="fault-side-name">—</span>
+      </button>
+    </div>
+    <!-- Phase 2: countdown while door is held open -->
+    <div id="fault-phase-2" style="display:none">
+      <button class="btn btn-countdown btn-full" disabled>
+        Gardez la porte ouverte… <span id="fault-countdown">10</span>s
+      </button>
+    </div>
+    <!-- Phase 3: ready to resolve -->
+    <div id="fault-phase-3" style="display:none" class="fault-resolve-group">
+      <button class="btn btn-resolve btn-full" onclick="resolveFault()">✓ Résoudre le défaut</button>
+      <button class="btn btn-reopen btn-full" onclick="faultUnlockDoor()">
+        🔓 Déverrouiller à nouveau la porte <span class="fault-side-name">—</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Temperature ── -->
+  <div class="card-warm">
+    <!-- Main: current room temp (BLE) + wanted room temp -->
+    <div class="main-temps-row">
+      <div class="main-temp-half">
+        <div class="temp-big" id="ble-room-temp" style="opacity:.5">—°</div>
+        <div class="temp-small-label" id="ble-room-label">Température actuelle</div>
+      </div>
+      <div class="main-temp-half">
+        <div class="wanted-controls">
+          <button class="adj-btn" onclick="adjustRoom(-1)">−</button>
+          <div id="room-val">20°</div>
+          <button class="adj-btn" onclick="adjustRoom(+1)">+</button>
+        </div>
+        <div class="temp-small-label">Température souhaitée</div>
+      </div>
+    </div>
+    <!-- Secondary: stove internals (de-emphasised) -->
+    <div class="stove-tech-row">
+      <span>Poêle <span id="stove-temp">—°</span></span>
+      <span style="opacity:.5">·</span>
+      <span>Consigne <span id="setpoint-val">—°</span></span>
+    </div>
+  </div>
+
+  <!-- ── Log Cartridges ── -->
+  <div class="card">
+    <div class="section-title">Cartouches de bûches</div>
+    <div class="cart-grid">
+
+      <!-- Left -->
+      <div class="cart-col left">
+        <div class="cart-title">Gauche</div>
+        <div class="bars" id="bars-left"></div>
+        <div class="cart-count" id="count-left">—</div>
+        <div class="cart-btn-stack">
+          <button class="btn btn-green"  onclick="unlockDoor('l')">Déverrouiller</button>
+          <button class="btn btn-orange" onclick="publish('cmd/motor_home',mapSide('l'))">Rembobiner</button>
+          <button class="btn btn-brown"  onclick="updateLogCount('l')">Mettre à jour</button>
+        </div>
+      </div>
+
+      <!-- Time left -->
+      <div class="time-col">
+        <div class="time-label">Temps<br>restant</div>
+        <div class="time-val" id="burn-time-val">—</div>
+        <div class="time-unit" id="burn-time-unit">estimé</div>
+      </div>
+
+      <!-- Right -->
+      <div class="cart-col right">
+        <div class="cart-title">Droite</div>
+        <div class="bars" id="bars-right"></div>
+        <div class="cart-count" id="count-right">—</div>
+        <div class="cart-btn-stack">
+          <button class="btn btn-green"  onclick="unlockDoor('r')">Déverrouiller</button>
+          <button class="btn btn-orange" onclick="publish('cmd/motor_home',mapSide('r'))">Rembobiner</button>
+          <button class="btn btn-brown"  onclick="updateLogCount('r')">Mettre à jour</button>
+        </div>
+      </div>
+
+    </div>
+
+
+  </div>
+
+  <!-- ── Settings ── -->
+  <div class="card">
+    <div class="settings-toggle" onclick="toggleSettings()">
+      <span style="font-weight:700;color:#8B4513">Paramètres</span>
+      <span class="arrow" id="settings-arrow">▼</span>
+    </div>
+    <div class="settings-body" id="settings-body">
+
+      <!-- Maintenance alerts -->
+      <div>
+        <div class="settings-section">Alertes de maintenance</div>
+        <div class="gap-col">
+          <div class="alert-row">
+            <div class="alert-fields">
+              <input type="email" id="alert-email-1" placeholder="Adresse e-mail"/>
+              <input type="tel"   id="alert-phone-1" placeholder="Téléphone  ex. +33 6 12 34 56 78"/>
+            </div>
+            <input type="checkbox" id="alert-en-1" checked/>
+          </div>
+          <div class="alert-row">
+            <div class="alert-fields">
+              <input type="email" id="alert-email-2" placeholder="Adresse e-mail"/>
+              <input type="tel"   id="alert-phone-2" placeholder="Téléphone  ex. +33 6 12 34 56 78"/>
+            </div>
+            <input type="checkbox" id="alert-en-2"/>
+          </div>
+          <div class="alert-row">
+            <div class="alert-fields">
+              <input type="email" id="alert-email-3" placeholder="Adresse e-mail"/>
+              <input type="tel"   id="alert-phone-3" placeholder="Téléphone  ex. +33 6 12 34 56 78"/>
+            </div>
+            <input type="checkbox" id="alert-en-3"/>
+          </div>
+          <button class="btn btn-brown btn-sm btn-full" onclick="saveAlerts()">Enregistrer les alertes</button>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Maintenance reminders -->
+      <div>
+        <div class="settings-section">Rappels de maintenance</div>
+        <div class="gap-col">
+          <div class="maint-row">
+            <span class="maint-lbl">Remplacer le joint</span>
+            <span class="maint-val" id="joint-days">— jours</span>
+            <button class="btn btn-brown btn-sm" style="flex:none" onclick="replaceJoint()">Vérifier</button>
+          </div>
+          <div class="maint-row">
+            <span class="maint-lbl">Ramonage</span>
+            <span class="maint-val" id="ramon-days">— jours depuis le dernier</span>
+          </div>
+          <div class="maint-row">
+            <span class="maint-lbl">Remplacer le joint de porte</span>
+            <span class="maint-val" id="seal-days">— jours</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- House parameters -->
+      <div>
+        <div class="settings-section">Paramètres de la maison</div>
+        <div class="gap-col">
+          <div class="param-row">
+            <label>Taille</label>
+            <input type="number" id="house-size" placeholder="Volume" min="0"/>
+            <label>m³</label>
+          </div>
+          <div>
+            <div style="font-size:.82rem;color:#777;margin-bottom:7px">Isolation</div>
+            <div class="ins-wrap">
+              <button class="ins-btn" id="ins-poor"    onclick="setInsulation('poor')">Mauvaise</button>
+              <button class="ins-btn" id="ins-average" onclick="setInsulation('average')">Moyenne</button>
+              <button class="ins-btn" id="ins-good"    onclick="setInsulation('good')">Bonne</button>
+            </div>
+          </div>
+          <button class="btn btn-brown btn-sm btn-full" onclick="saveHouseParams()">Enregistrer les paramètres</button>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Disconnect -->
+      <button class="btn btn-gray btn-full" onclick="disconnect()">Déconnecter</button>
+
+    </div>
+  </div>
+
+  <!-- ── Heap Monitor ── -->
+  <div id="heap-monitor" style="display:none">
+    <div class="heap-row">
+      <span class="heap-lbl">Heap</span>
+      <div class="heap-bar-wrap"><div class="heap-bar-fill" id="heap-bar"></div></div>
+      <span class="heap-val" id="heap-free-val">—</span>
+      <span class="heap-lbl">·  min</span>
+      <span class="heap-val" id="heap-min-val">—</span>
+    </div>
+  </div>
+
+  <!-- ── Technical Mode ── -->
+  <div class="card">
+    <div class="settings-toggle" onclick="toggleTechMode()">
+      <span style="font-weight:700;color:#8B4513">⚙ Mode Technique</span>
+      <span class="arrow" id="tech-arrow">▼</span>
+    </div>
+    <div class="settings-body" id="tech-body">
+
+      <!-- SIDE SELECTOR -->
+      <div>
+        <div class="tech-sec">Côté actif</div>
+        <div class="side-sel">
+          <div class="side-opt active" id="side-opt-l" onclick="selectSide('l')">◀ GAUCHE</div>
+          <div class="side-opt"        id="side-opt-r" onclick="selectSide('r')">DROITE ▶</div>
+        </div>
+        <div class="row-btns" style="margin-top:10px">
+          <button class="btn btn-green"  onclick="techUnlockDoor()">🔓 Déverrouiller</button>
+          <button class="btn btn-orange" onclick="techRewind()">↺ Rembobiner</button>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- FAN CONTROL -->
+      <div>
+        <div class="tech-sec">Contrôle du ventilateur</div>
+        <div class="side-sel" style="margin-bottom:6px">
+          <div class="side-opt active" id="fan-mode-auto"   onclick="setFanMode(false)">⚡ AUTO</div>
+          <div class="side-opt"        id="fan-mode-manual" onclick="setFanMode(true)">✋ MANUEL</div>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:center;margin:2px 0 6px;font-size:.72rem;color:#888">
+          <span>Principal&thinsp;<b id="fan-main-live" style="color:#5a2d0c;font-size:.82rem">—</b>%</span>
+          <span style="color:#ccc">|</span>
+          <span>Refroid.&thinsp;<b id="fan-cooling-live" style="color:#5a2d0c;font-size:.82rem">—</b>%</span>
+        </div>
+        <div id="fan-manual-ctrls" class="tech-manual-block" style="display:none">
+          <div>
+            <div class="tech-field-lbl">Vitesse ventilateur principal (%)</div>
+            <input id="fan-main-val" class="tech-input" type="number" min="0" max="100" value="50">
+          </div>
+          <div>
+            <div class="tech-field-lbl">Vitesse ventilateur refroidissement (%)</div>
+            <input id="fan-cooling-val" class="tech-input" type="number" min="0" max="100" value="30">
+          </div>
+          <button class="btn btn-brown btn-full" onclick="applyFanSpeeds()">Appliquer les vitesses</button>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- AUTOMATIC INSERTION -->
+      <div>
+        <div class="tech-sec">Insertion automatique</div>
+        <div class="toggle-wrap">
+          <span class="toggle-label">Insertion auto</span>
+          <label class="tgl"><input type="checkbox" id="tog-auto-insert" onchange="setAutoInsertEn(this.checked)"><span class="tgl-sl"></span></label>
+        </div>
+        <button class="btn btn-red btn-full" id="manual-insert-btn" style="margin-top:12px" onclick="techInsert()">▶▶ Insérer manuellement</button>
+      </div>
+
+      <hr class="divider">
+
+      <!-- TEMPERATURE CONTROL -->
+      <div>
+        <div class="tech-sec">Contrôle de température</div>
+        <div class="toggle-wrap">
+          <span class="toggle-label">Consigne automatique</span>
+          <label class="tgl"><input type="checkbox" id="tog-auto-setpoint" onchange="setAutoSP(this.checked)"><span class="tgl-sl"></span></label>
+        </div>
+        <div id="setpoint-manual-ctrls" style="display:none;margin-top:10px">
+          <div class="tech-field-lbl">Consigne manuelle (°C)</div>
+          <input id="tech-setpoint-input" class="tech-input" type="number" min="100" max="500" value="325">
+          <button class="btn btn-brown btn-full" style="margin-top:8px" onclick="applySetpoint()">Appliquer la consigne</button>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- SYSTEM OPTIONS -->
+      <div>
+        <div class="tech-sec">Options système</div>
+        <div class="toggle-wrap">
+          <span class="toggle-label">Bip sonore</span>
+          <label class="tgl"><input type="checkbox" id="tog-beeper" onchange="setBeeperEn(this.checked)"><span class="tgl-sl"></span></label>
+        </div>
+        <div class="toggle-wrap" style="margin-top:12px">
+          <span class="toggle-label">Protection température max</span>
+          <label class="tgl"><input type="checkbox" id="tog-max-temp" onchange="setMaxTempEnabled(this.checked)"><span class="tgl-sl"></span></label>
+        </div>
+        <div id="max-temp-val-row" style="display:none;margin-top:10px">
+          <div class="tech-field-lbl">Seuil de limitation (°C)</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input id="max-temp-threshold" class="tech-input" type="number" min="200" max="600" value="500" style="flex:1">
+            <button class="btn btn-brown btn-sm" style="flex:none" onclick="applyMaxTemp()">Définir</button>
+          </div>
+        </div>
+        <div class="toggle-wrap" style="margin-top:12px">
+          <span class="toggle-label">🍃 Mode Éco <span style="font-size:.75rem;color:rgba(255,255,255,.55);font-weight:400">(plancher 51%)</span></span>
+          <label class="tgl"><input type="checkbox" id="tog-eco-mode" onchange="setEcoMode(this.checked)"><span class="tgl-sl"></span></label>
+        </div>
+        <div id="normal-floor-row" style="display:none;margin-top:10px">
+          <div class="tech-field-lbl">Plancher mode normal (%)</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input id="normal-floor-val" class="tech-input" type="number" min="0" max="70" value="65" style="flex:1">
+            <button class="btn btn-brown btn-sm" style="flex:none" onclick="applyNormalFloor()">Définir</button>
+          </div>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- MANUAL MOTOR CONTROL -->
+      <div>
+        <div class="tech-sec">Contrôle moteur manuel<span id="motor-side-lbl" class="side-badge">◀ G</span></div>
+        <div class="tech-field-lbl">Pas</div>
+        <input id="motor-steps" class="tech-input" type="number" value="200" min="1" max="9999">
+        <div class="row-btns" style="margin-top:10px;margin-bottom:8px">
+          <button class="btn btn-brown" onclick="techMotor('forward')">▶ Avant</button>
+          <button class="btn btn-brown" onclick="techMotor('backward')">◀ Arrière</button>
+        </div>
+        <div class="row-btns">
+          <button class="btn btn-gray" onclick="publish('cmd/motor_stop','1')">⏹ Arrêt</button>
+          <button class="btn btn-blue" onclick="publish('cmd/motor_home', mapSide(techSide))">🏠 Origine</button>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- MANUAL PISTON CONTROL -->
+      <div>
+        <div class="tech-sec">Contrôle piston manuel<span id="piston-side-lbl" class="side-badge">◀ G</span></div>
+        <div class="row-btns" style="margin-bottom:8px">
+          <button class="btn btn-green"  onclick="techPiston('extend')">↑ Étendre</button>
+          <button class="btn btn-orange" onclick="techPiston('retract')">↓ Rétracter</button>
+        </div>
+        <div class="row-btns">
+          <button class="btn btn-gray" onclick="techPiston('stop')">⏹ Arrêt</button>
+          <button class="btn btn-gray" onclick="techPiston('tare')">⊕ Tare</button>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- SIM TEMP (INPUT_TEMP firmware build only) -->
+      <div>
+        <div class="tech-sec">Temp. poêle simulée</div>
+        <div class="tech-field-lbl">Forcer le thermocouple (°C) — nécessite le firmware INPUT_TEMP</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="sim-temp-val" class="tech-input" type="number" min="0" max="1000" value="300" placeholder="°C" style="flex:1">
+          <button class="btn btn-brown btn-sm" style="flex:none" onclick="setSimTemp()">Définir</button>
+        </div>
+      </div>
+
+      <!-- SYSTEM CONTROL -->
+      <div>
+        <div class="tech-sec">Contrôle système</div>
+        <button class="btn btn-red btn-full" onclick="techReset()">↺ Réinitialiser ESP32</button>
+        <p style="font-size:.72rem;color:#aaa;margin-top:8px;text-align:center">Attention : cela redémarrera le contrôleur</p>
+        <p style="font-size:.7rem;color:#bbb;margin-top:4px;text-align:center">Version · Mar 2026</p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Footer ── -->
+  <div style="text-align:center;font-size:.72rem;color:rgba(255,255,255,.5);padding-bottom:8px">
+    WoodMood · <span id="footer-serial">—</span><span id="footer-ota"></span>
+  </div>
+
+</div>
+
+<!-- ── Toast ── -->
+<div id="toast"></div>
+
+<!-- ── Offline overlay ── -->
+<div id="offline-overlay">
+  <div class="offline-box">
+    <h2>Déconnecté</h2>
+    <p>Connexion au courtier perdue.<br>Reconnexion automatique…</p>
+    <button class="btn btn-brown btn-full" onclick="reconnect()">Réessayer</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONFIGURATION
+// ============================================================
+const SWAP_SIDES = false;   // true = swap left/right relative to firmware, false = no swap
+
+// ============================================================
+// STATE
+// ============================================================
+const LS        = 'woodmood_cfg';
+const LS_ALERTS = 'woodmood_alerts';
+const LS_HOUSE  = 'woodmood_house';
+
+let cfg              = JSON.parse(localStorage.getItem(LS) || '{}');
+let client           = null;
+let prefix           = '';
+let roomTemp         = 20;
+let lastHbTime       = 0;
+let hbTimer          = null;
+let settingsOpen     = false;
+let systemState      = 'startup';   // startup | auto | cooldown | fault
+let faultSide            = null;    // 'l' | 'r'
+let faultReady           = false;   // firmware signals fault can be resolved
+let faultCountdownActive = false;   // local 10-s countdown is running
+let faultCountdownTimer  = null;
+let insulation       = null;
+
+// Derived state tracking
+let stoveTemp          = null;   // latest stove temp (°C) from MQTT
+let setpointVal        = null;   // latest setpoint (°C) from MQTT
+let sysActive          = false;  // system_active from status/full
+let faultActive        = false;  // fault active flag
+let inCooldown         = false;  // user manually entered cooldown (optimistic)
+let remoteStateReceived= false;  // true once firmware sends status/system_state
+let logL               = 0;      // current left log count
+let logR               = 0;      // current right log count
+let bleRoomTemp        = null;   // BLE room sensor temperature (°C), null = unavailable
+let bleRoomTempOk      = false;  // true when BLE sensor has a valid reading
+let lastKnownBleTemp   = null;   // last valid BLE reading — shown when sensor goes offline
+
+// ── Pending-command lock — prevents MQTT rubber-banding toggles ──
+const pendingCmds = {};
+const PENDING_TTL = 4000; // ms — ignore MQTT updates for this long after a command
+function lockField(f) { pendingCmds[f] = Date.now() + PENDING_TTL; }
+function isLocked(f)  { return !!(pendingCmds[f] && Date.now() < pendingCmds[f]); }
+
+// ============================================================
+// INIT
+// ============================================================
+window.addEventListener('load', () => {
+  loadSettings();
+  // Restore last known wanted temp from localStorage so the display is never
+  // wrong on a fresh page load (before the first MQTT status arrives).
+  const savedRoom = parseInt(localStorage.getItem('woodmood_room_temp'));
+  if (savedRoom >= 18 && savedRoom <= 26) roomTemp = savedRoom;
+  if (cfg.broker && cfg.user && cfg.pass && cfg.serial) {
+    fillForm();
+    document.getElementById('conn-card').style.display = 'none';
+    connect();
+  }
+  renderBars('left',  0);
+  renderBars('right', 0);
+  document.getElementById('room-val').textContent = roomTemp + '°';
+});
+
+function fillForm() {
+  document.getElementById('cfg-broker').value = cfg.broker || '';
+  document.getElementById('cfg-user').value   = cfg.user   || '';
+  document.getElementById('cfg-pass').value   = cfg.pass   || '';
+  document.getElementById('cfg-serial').value = cfg.serial || '';
+}
+
+function toggleConnPanel() {
+  const card = document.getElementById('conn-card');
+  card.style.display = card.style.display === 'none' ? '' : 'none';
+  if (card.style.display !== 'none') fillForm();
+}
+
+// ============================================================
+// CONNECTION
+// ============================================================
+function saveAndConnect() {
+  cfg.broker = document.getElementById('cfg-broker').value.trim();
+  cfg.user   = document.getElementById('cfg-user').value.trim();
+  cfg.pass   = document.getElementById('cfg-pass').value.trim();
+  cfg.serial = document.getElementById('cfg-serial').value.trim();
+  if (!cfg.broker || !cfg.user || !cfg.serial) { alert('Veuillez remplir tous les champs'); return; }
+  localStorage.setItem(LS, JSON.stringify(cfg));
+  document.getElementById('conn-card').style.display = 'none';
+  connect();
+}
+
+function connect() {
+  prefix = 'WoodMood' + cfg.serial;
+  setDotState('connecting');
+
+  if (client) { try { client.end(true); } catch(e){} }
+
+  client = mqtt.connect(`wss://${cfg.broker}:8884/mqtt`, {
+    username:        cfg.user,
+    password:        cfg.pass,
+    clientId:        'woodmood-web-' + Math.random().toString(16).substr(2,8),
+    keepalive:       60,
+    reconnectPeriod: 5000,
+    connectTimeout:  10000,
+    rejectUnauthorized: false
+  });
+
+  client.on('connect', () => {
+    setDotState('connected');   // orange — waiting for heartbeat
+    document.getElementById('offline-overlay').classList.remove('show');
+    client.subscribe(prefix + '/status/#');
+  });
+
+  client.on('message',   onMessage);
+  client.on('offline',   () => { setDotState('disconnected'); showOffline(); });
+  client.on('error',     () => { setDotState('disconnected'); });
+  client.on('reconnect', () => { setDotState('connecting');   });
+}
+
+function disconnect() {
+  if (client) { try { client.end(true); } catch(e){} client = null; }
+  setDotState('disconnected');
+  document.getElementById('conn-card').style.display = '';
+  fillForm();
+}
+
+function reconnect() {
+  document.getElementById('offline-overlay').classList.remove('show');
+  connect();
+}
+
+function setDotState(s) {
+  const dot   = document.getElementById('status-dot');
+  const label = document.getElementById('status-label');
+  dot.className = 'status-dot';
+  if      (s === 'connecting') { dot.classList.add('connecting'); label.textContent = 'Connexion…';   }
+  else if (s === 'connected')  { dot.classList.add('connected');  label.textContent = 'Connecté';     }
+  else if (s === 'alive')      { dot.classList.add('alive');      label.textContent = 'Connecté';     }
+  else                         {                                  label.textContent = 'Déconnecté';   }
+}
+
+function showOffline() {
+  if (lastHbTime > 0) document.getElementById('offline-overlay').classList.add('show');
+}
+
+// ============================================================
+// MQTT MESSAGES
+// ============================================================
+function onMessage(topic, payloadBuf) {
+  const payload = payloadBuf.toString();
+  const sub     = topic.replace(prefix + '/', '');
+
+  if (sub === 'status/heartbeat') {
+    publish('cmd/heartbeat_ack', '1');
+    lastHbTime = Date.now();
+    setDotState('alive');
+    clearTimeout(hbTimer);
+    hbTimer = setTimeout(() => setDotState('connected'), 31000);
+    return;
+  }
+
+  if (sub === 'status/full')       { try { applyFull(JSON.parse(payload)); } catch(e){} return; }
+  if (sub === 'status/fault')      { setFault(payload === '1'); return; }
+  if (sub === 'status/fault_msg')  { setFaultMsg(payload);      return; }
+  if (sub === 'status/fault_side') { const _s = payload.toLowerCase(); faultSide = (_s === 'right' || _s === 'r') ? 'r' : 'l'; if (faultActive) renderFaultPhase(); return; }
+
+  if (sub === 'status/temperature') {
+    stoveTemp = parseFloat(payload);
+    document.getElementById('stove-temp').textContent = payload + '°';
+    updateSystemState(); return;
+  }
+  if (sub === 'status/room_temp') {
+    const val = parseFloat(payload);
+    bleRoomTempOk = !isNaN(val) && val > -998;
+    bleRoomTemp   = bleRoomTempOk ? val : null;
+    updateBleRoomTemp(); return;
+  }
+  if (sub === 'status/log_level_l') {
+    logL = parseInt(payload) || 0;
+    renderBars('left', logL);
+    document.getElementById('count-left').textContent = logL + ' bûches';
+    calcBurnTime(); return;
+  }
+  if (sub === 'status/log_level_r') {
+    logR = parseInt(payload) || 0;
+    renderBars('right', logR);
+    document.getElementById('count-right').textContent = logR + ' bûches';
+    calcBurnTime(); return;
+  }
+  if (sub === 'status/system_state') {
+    remoteStateReceived = true;
+    if (!isLocked('system_state')) applySystemState(payload);
+    return;
+  }
+  if (sub === 'status/maint_joint')  { document.getElementById('joint-days').textContent = payload + ' jours'; return; }
+  if (sub === 'status/maint_ramon')  { document.getElementById('ramon-days').textContent = payload + ' jours depuis le dernier'; return; }
+  if (sub === 'status/maint_seal')   { document.getElementById('seal-days').textContent  = payload + ' jours'; return; }
+
+  if (sub === 'status/heap') {
+    try {
+      const h = JSON.parse(payload);
+      if (h.free !== undefined) applyHeap(h.free, h.min_free, h.max_alloc);
+    } catch(e) {}
+    return;
+  }
+}
+
+// ============================================================
+// FULL STATUS JSON
+// ============================================================
+function applyFull(d) {
+  if (d.stove_temp !== undefined) {
+    stoveTemp = parseFloat(d.stove_temp);
+    document.getElementById('stove-temp').textContent = d.stove_temp + '°';
+  }
+  if (d.setpoint !== undefined) {
+    setpointVal = parseFloat(d.setpoint);
+    document.getElementById('setpoint-val').textContent = d.setpoint + '°';
+  }
+  if (d.room_temp !== undefined) {
+    const val = parseFloat(d.room_temp);
+    bleRoomTempOk = (d.room_temp_ok !== undefined) ? !!d.room_temp_ok : (!isNaN(val) && val > -998);
+    bleRoomTemp   = bleRoomTempOk ? val : null;
+    updateBleRoomTemp();
+  }
+  if (d.log_l !== undefined) {
+    logL = parseInt(d.log_l) || 0;
+    renderBars('left', logL);
+    document.getElementById('count-left').textContent = logL + ' bûches';
+  }
+  if (d.log_r !== undefined) {
+    logR = parseInt(d.log_r) || 0;
+    renderBars('right', logR);
+    document.getElementById('count-right').textContent = logR + ' bûches';
+  }
+  // Sync wanted room temp from firmware echo — keeps all clients in sync.
+  // Skipped for 4 s after the local user taps +/- to avoid rubber-banding.
+  if (d.room_setpoint !== undefined && !isLocked('room_temp')) {
+    const r = parseInt(d.room_setpoint);
+    if (r >= 18 && r <= 26 && r !== roomTemp) {
+      roomTemp = r;
+      document.getElementById('room-val').textContent = roomTemp + '°';
+      localStorage.setItem('woodmood_room_temp', roomTemp);
+    }
+  }
+  if (d.system_active !== undefined) sysActive = !!d.system_active;
+  if (d.fault !== undefined) setFault(d.fault, d.fault_side, d.fault_ready);
+  if (d.system_state  !== undefined) { remoteStateReceived = true; if (!isLocked('system_state')) applySystemState(d.system_state); }
+  if (d.uptime !== undefined) {
+    const h = Math.floor(d.uptime/3600), m = Math.floor((d.uptime%3600)/60);
+    document.getElementById('footer-serial').textContent = 'up ' + h + 'h ' + m + 'm';
+  }
+  if (d.local_ip && d.local_ip !== '0.0.0.0') {
+    const el = document.getElementById('footer-ota');
+    if (el) el.innerHTML = '  ·  <a href="http://' + d.local_ip + '/update" target="_blank"'
+      + ' style="color:rgba(255,255,255,.5);text-decoration:none" title="Ouvrir le programme de mise à jour OTA">'
+      + d.local_ip + '/update</a>'
+      + ' <span style="opacity:.55">pwd: &lt;MQTT password&gt;</span>';
+  }
+  if (d.heap_free !== undefined) applyHeap(d.heap_free, d.heap_min || 0, d.heap_max_alloc || 0);
+  if (d.maint_joint !== undefined) document.getElementById('joint-days').textContent = d.maint_joint + ' jours';
+  if (d.maint_ramon !== undefined) document.getElementById('ramon-days').textContent = d.maint_ramon + ' jours depuis le dernier';
+  if (d.maint_seal  !== undefined) document.getElementById('seal-days').textContent  = d.maint_seal  + ' jours';
+
+  applyTechState(d);
+  calcBurnTime();
+  updateSystemState();
+}
+
+// ============================================================
+// BLE ROOM TEMPERATURE
+// ============================================================
+function updateBleRoomTemp() {
+  const el  = document.getElementById('ble-room-temp');
+  const lbl = document.getElementById('ble-room-label');
+  if (!el) return;
+  if (bleRoomTempOk && bleRoomTemp !== null) {
+    lastKnownBleTemp = bleRoomTemp;
+    el.textContent      = bleRoomTemp.toFixed(1) + '°';
+    el.style.fontStyle  = 'normal';
+    el.style.opacity    = '1';
+    lbl.textContent     = 'Température actuelle';
+    lbl.style.fontStyle = 'normal';
+  } else if (lastKnownBleTemp !== null) {
+    el.textContent      = lastKnownBleTemp.toFixed(1) + '°';
+    el.style.fontStyle  = 'italic';
+    el.style.opacity    = '0.65';
+    lbl.textContent     = 'Dernière mesure';
+    lbl.style.fontStyle = 'italic';
+  } else {
+    el.textContent      = '—°';
+    el.style.fontStyle  = 'normal';
+    el.style.opacity    = '0.5';
+    lbl.textContent     = 'Pièce (sans capteur)';
+    lbl.style.fontStyle = 'normal';
+  }
+}
+
+// ============================================================
+// SYSTEM STATE
+// ============================================================
+
+// Derive state from live data — used as fallback when firmware hasn't sent
+// status/system_state yet (e.g. older firmware or first connection).
+function updateSystemState() {
+  // Once the firmware is sending its own state, trust it — don't override.
+  if (remoteStateReceived) return;
+
+  if (faultActive)  { applySystemState('fault');    return; }
+  if (inCooldown)   { applySystemState('cooldown'); return; }
+
+  // Startup until stove reaches 85 % of setpoint (mirrors MODE_STARTUP on ESP32)
+  if (stoveTemp !== null && setpointVal !== null && setpointVal > 0) {
+    if (stoveTemp >= setpointVal * 0.85 && sysActive) {
+      applySystemState('auto');
+    } else {
+      applySystemState('startup');
+    }
+  } else {
+    applySystemState('startup');
+  }
+}
+
+// Render system state button — accepts both firmware strings and local strings.
+function applySystemState(state) {
+  systemState = state;
+  // Clean up cooldown flag when system reaches standby naturally
+  if (state === 'standby' || state === 'startup' || state === 'auto') {
+    if (state !== 'cooldown') inCooldown = false;
+  }
+  const btn    = document.getElementById('sys-btn');
+  const labels = {
+    startup:       'Démarrage',
+    auto:          'Fonctionnement automatique',
+    cooldown:      'Refroidissement',
+    standby:       'Éteint — Appuyer pour démarrer',
+    fault:         'Défaut détecté',
+    shutting_down: 'Arrêt en cours',
+    active:        'Fonctionnement automatique',  // legacy fallback
+  };
+  btn.textContent = labels[state] || state;
+  // Map firmware state names to CSS classes
+  const cssClass = state === 'active' ? 'auto'
+                 : state === 'shutting_down' ? 'cooldown'
+                 : (state || 'startup');
+  btn.className = 'sys-btn ' + cssClass;
+}
+
+function sysButtonClick() {
+  // Use CSS class as the authoritative source for the button's current state.
+  // This is a fallback safety net: if the `systemState` JS variable is stale,
+  // null, or mismatched (e.g. a duplicate MQTT message arrived out-of-order),
+  // we still handle the click correctly based on what the button visually shows.
+  const btn        = document.getElementById('sys-btn');
+  const btnState   = systemState || [...btn.classList].find(c => c !== 'sys-btn') || 'startup';
+
+  if (btnState === 'startup') {
+    const hot = stoveTemp !== null && stoveTemp > 150;
+    const msg = hot
+      ? 'Le poêle est chaud (' + Math.round(stoveTemp) + '°). Passer en refroidissement ?'
+      : 'Le poêle est froid. Éteindre le système ?';
+    if (!confirm(msg)) return;
+    inCooldown = true;
+    lockField('system_state');
+    publish('cmd/cooldown', '1');
+    applySystemState(hot ? 'cooldown' : 'standby');
+  } else if (btnState === 'auto' || btnState === 'active') {
+    if (!confirm('Passer en mode refroidissement ?')) return;
+    inCooldown = true;
+    lockField('system_state');
+    publish('cmd/cooldown', '1');
+    applySystemState('cooldown');
+  } else if (btnState === 'cooldown') {
+    if (!confirm('Annuler le refroidissement et revenir en mode automatique ?')) return;
+    inCooldown = false;
+    lockField('system_state');
+    publish('cmd/cooldown', '0');
+    applySystemState('auto');
+  } else if (btnState === 'standby') {
+    // No confirm needed — button already reads "Off — Press to Start".
+    // The user explicitly tapped it; an extra dialog just adds friction and
+    // widens the timing window where a QoS-1 duplicate cooldown can slip through.
+    lockField('system_state');
+    publish('cmd/start', '1');
+    applySystemState('startup');
+  }
+}
+
+// ============================================================
+// FAULT
+// ============================================================
+function setFault(active, side, ready) {
+  const wasActive = faultActive;
+  faultActive = !!(active || active === '1' || active === true);
+  if (side !== undefined && side !== null) {
+    // Firmware sends "Right"/"Left" (full words) — normalize to 'r'/'l' for topic building
+    const s = String(side).toLowerCase();
+    faultSide = (s === 'right' || s === 'r') ? 'r' : 'l';
+  }
+  if (ready) faultReady = true;  // firmware can only SET faultReady, never clear it mid-fault
+  const banner = document.getElementById('fault-banner');
+  if (faultActive) {
+    banner.classList.add('show');
+    if (!wasActive) {
+      // Fresh fault — reset to phase 1
+      clearFaultCountdown();
+      faultReady = false;
+    }
+    renderFaultPhase();
+  } else {
+    banner.classList.remove('show');
+    clearFaultCountdown();
+    faultReady = false;
+    const el = document.getElementById('fault-msg-text');
+    if (el) el.textContent = 'Bûche coincée dans la trappe — suivez les étapes ci-dessous';
+  }
+  updateSystemState();
+}
+
+function renderFaultPhase() {
+  const sideLabel = (faultSide === 'r') ? 'Droite' : 'Gauche';
+  // Update side badge and all side-name spans
+  const badge = document.getElementById('fault-side-badge');
+  if (badge) badge.textContent = sideLabel + ' — Côté';
+  document.querySelectorAll('.fault-side-name').forEach(function(el) {
+    el.textContent = sideLabel;
+  });
+  const p1 = document.getElementById('fault-phase-1');
+  const p2 = document.getElementById('fault-phase-2');
+  const p3 = document.getElementById('fault-phase-3');
+  if (faultReady) {
+    // Phase 3: firmware confirmed ready to resolve
+    clearFaultCountdown();
+    p1.style.display = 'none';
+    p2.style.display = 'none';
+    p3.style.display = '';
+  } else if (faultCountdownActive) {
+    // Phase 2: local countdown running
+    p1.style.display = 'none';
+    p2.style.display = '';
+    p3.style.display = 'none';
+  } else {
+    // Phase 1: waiting for user to unlock door
+    p1.style.display = '';
+    p2.style.display = 'none';
+    p3.style.display = 'none';
+  }
+}
+
+function faultUnlockDoor() {
+  const side = faultSide || 'l';
+  publish('cmd/door_' + side, '1');
+  // firmware 'r' = physical left, firmware 'l' = physical right
+  showToast('Déverrouillage porte ' + (side === 'r' ? 'gauche' : 'droite') + '…');
+  // Start 10-s local countdown (moves to phase 3 when done)
+  clearFaultCountdown();
+  faultCountdownActive = true;
+  let secs = 10;
+  document.getElementById('fault-countdown').textContent = secs;
+  renderFaultPhase();
+  faultCountdownTimer = setInterval(function() {
+    secs--;
+    document.getElementById('fault-countdown').textContent = secs;
+    if (secs <= 0) {
+      clearFaultCountdown();
+      faultReady = true;
+      renderFaultPhase();
+    }
+  }, 1000);
+}
+
+function clearFaultCountdown() {
+  clearInterval(faultCountdownTimer);
+  faultCountdownTimer  = null;
+  faultCountdownActive = false;
+}
+
+function resolveFault() {
+  publish('cmd/resolve_fault', '1');
+}
+
+function setFaultMsg(msg) {
+  if (!msg) return;
+  const el = document.getElementById('fault-msg-text');
+  if (el) el.textContent = msg;
+}
+
+// ============================================================
+// LOG CARTRIDGE BARS
+// ============================================================
+function renderBars(side, count) {
+  const MAX = 6;
+  const el  = document.getElementById('bars-' + side);
+  el.innerHTML = '';
+  for (let i = 0; i < MAX; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'bar' + (i >= count ? ' empty' : '');
+    el.appendChild(bar);
+  }
+}
+
+// ============================================================
+// COMMANDS
+// ============================================================
+function publish(subtopic, payload) {
+  if (!client || !client.connected) { alert('Non connecté au courtier'); return; }
+  client.publish(prefix + '/' + subtopic, String(payload), { qos:1 });
+}
+
+function mapSide(s) { return SWAP_SIDES ? (s === 'l' ? 'r' : 'l') : s; }
+
+function adjustRoom(delta) {
+  roomTemp = Math.min(26, Math.max(18, (isNaN(roomTemp) ? 20 : roomTemp) + delta));
+  document.getElementById('room-val').textContent = roomTemp + '°';
+  localStorage.setItem('woodmood_room_temp', roomTemp);
+  lockField('room_temp');   // prevent MQTT echo from overwriting immediately after a tap
+  publish('cmd/room_temp', roomTemp);
+}
+
+function unlockDoor(side) {
+  if (!confirm('Déverrouiller la porte ' + (side==='l'?'GAUCHE':'DROITE') + ' ?')) return;
+  publish('cmd/door_' + mapSide(side), '1');
+}
+
+function updateLogCount(side) {
+  const id  = side === 'l' ? 'count-left' : 'count-right';
+  const cur = document.getElementById(id).textContent.replace(' logs','').trim();
+  const val = prompt('Nombre de bûches pour la cartouche ' + (side==='l'?'gauche':'droite') + ' (0–6) :', cur === '—' ? '0' : cur);
+  if (val === null) return;
+  const n = Math.min(6, Math.max(0, parseInt(val) || 0));
+  if (side === 'l') logL = n; else logR = n;
+  publish('cmd/log_level_' + mapSide(side), n);
+  renderBars(side === 'l' ? 'left' : 'right', n);
+  document.getElementById(id).textContent = n + ' bûches';
+  calcBurnTime();
+}
+
+// ============================================================
+// BURN TIME — 40 min per log
+// ============================================================
+function calcBurnTime() {
+  const total    = logL + logR;
+  const el       = document.getElementById('burn-time-val');
+  const unitEl   = document.getElementById('burn-time-unit');
+  if (total === 0) { el.textContent = '—'; unitEl.textContent = ''; return; }
+  const totalMins = total * 40;
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  el.textContent   = h > 0 ? (m > 0 ? h + 'h ' + m + 'm' : h + 'h') : m + 'm';
+  unitEl.textContent = 'estimé';
+}
+
+// ============================================================
+// SIMULATE INSERTION — now triggers a real insertion sequence
+// ============================================================
+function simulateInsertion() {
+  if (!confirm('Déclencher une vraie séquence d\'insertion sur le poêle ?')) return;
+  publish('cmd/insert', mapSide(techSide));
+  showToast('Insertion déclenchée — côté ' + (techSide === 'l' ? 'gauche' : 'droit'));
+}
+
+// ============================================================
+// TECHNICAL MODE
+// ============================================================
+let techFanManual    = false;
+let techAutoInsertOn = true;
+let techAutoSP       = true;
+let techSide         = 'l';
+
+function selectSide(s) {
+  techSide = s;
+  document.getElementById('side-opt-l').classList.toggle('active', s === 'l');
+  document.getElementById('side-opt-r').classList.toggle('active', s === 'r');
+  // Update side badges on Motor and Piston section headers
+  const lbl = s === 'l' ? '◀ G' : 'D ▶';
+  ['motor-side-lbl', 'piston-side-lbl'].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = lbl;
+  });
+}
+
+function techUnlockDoor() {
+  publish('cmd/door_' + mapSide(techSide), '1');
+  showToast('Déverrouillage porte ' + (techSide === 'l' ? 'gauche' : 'droite') + '…');
+}
+
+function techRewind() {
+  publish('cmd/motor_home', mapSide(techSide));
+  showToast('Rembobinage cartouche ' + (techSide === 'l' ? 'gauche' : 'droite') + '…');
+}
+
+function toggleTechMode() {
+  const body  = document.getElementById('tech-body');
+  const arrow = document.getElementById('tech-arrow');
+  const open  = body.classList.contains('open');
+  body.classList.toggle('open', !open);
+  arrow.classList.toggle('open', !open);
+}
+
+function applyTechState(d) {
+  const focused = document.activeElement;
+  if (d.fan_mode !== undefined && !isLocked('fan_mode')) {
+    techFanManual = d.fan_mode === 'manual';
+    document.getElementById('fan-mode-auto').classList.toggle('active',   !techFanManual);
+    document.getElementById('fan-mode-manual').classList.toggle('active',  techFanManual);
+    document.getElementById('fan-manual-ctrls').style.display = techFanManual ? 'flex' : 'none';
+  }
+  // Live fan speed readout — always reflects actual firmware state
+  if (d.fan_main    !== undefined) document.getElementById('fan-main-live').textContent    = d.fan_main;
+  if (d.fan_cooling !== undefined) document.getElementById('fan-cooling-live').textContent = d.fan_cooling;
+  // Only sync fan/setpoint inputs when the user is not typing in them
+  // and no manual Set command is in flight (4 s lock after applyFanSpeeds).
+  if (d.fan_main !== undefined && !isLocked('fan_main')) {
+    const el = document.getElementById('fan-main-val');
+    if (el !== focused) el.value = d.fan_main;
+  }
+  if (d.fan_cooling !== undefined && !isLocked('fan_cooling')) {
+    const el = document.getElementById('fan-cooling-val');
+    if (el !== focused) el.value = d.fan_cooling;
+  }
+  if (d.auto_setpoint !== undefined && !isLocked('auto_setpoint')) {
+    techAutoSP = !!d.auto_setpoint;
+    document.getElementById('tog-auto-setpoint').checked = techAutoSP;
+    document.getElementById('setpoint-manual-ctrls').style.display = techAutoSP ? 'none' : 'block';
+  }
+  if (d.setpoint !== undefined) {
+    const el = document.getElementById('tech-setpoint-input');
+    if (el !== focused) el.value = d.setpoint;
+  }
+  if (d.beeper !== undefined && !isLocked('beeper'))
+    document.getElementById('tog-beeper').checked = !!d.beeper;
+  if (d.max_temp_prot !== undefined && !isLocked('max_temp_prot')) {
+    document.getElementById('tog-max-temp').checked = !!d.max_temp_prot;
+    document.getElementById('max-temp-val-row').style.display = d.max_temp_prot ? 'block' : 'none';
+  }
+  if (d.max_temp_val !== undefined) {
+    const el = document.getElementById('max-temp-threshold');
+    if (el !== focused) el.value = d.max_temp_val;
+  }
+  if (d.eco_mode !== undefined && !isLocked('eco_mode')) {
+    document.getElementById('tog-eco-mode').checked = !!d.eco_mode;
+    document.getElementById('normal-floor-row').style.display = d.eco_mode ? 'none' : 'block';
+  }
+  if (d.norm_floor !== undefined) {
+    const el = document.getElementById('normal-floor-val');
+    if (el !== focused) el.value = d.norm_floor;
+  }
+  if (d.auto_insert !== undefined && !isLocked('auto_insert')) {
+    techAutoInsertOn = !!d.auto_insert;
+    document.getElementById('tog-auto-insert').checked = techAutoInsertOn;
+    const mb = document.getElementById('manual-insert-btn');
+    if (mb) mb.style.display = techAutoInsertOn ? 'none' : '';
+  }
+  // fault_ready is now handled entirely by setFault() above; no override here
+}
+
+function setBeeperEn(enabled) {
+  lockField('beeper');
+  publish('cmd/beeper', enabled ? '1' : '0');
+}
+
+function setFanMode(isManual) {
+  lockField('fan_mode');
+  techFanManual = isManual;
+  publish('cmd/fan_mode', isManual ? 'manual' : 'auto');
+  document.getElementById('fan-mode-auto').classList.toggle('active',   !isManual);
+  document.getElementById('fan-mode-manual').classList.toggle('active',  isManual);
+  document.getElementById('fan-manual-ctrls').style.display = isManual ? 'flex' : 'none';
+}
+
+function applyFanSpeeds() {
+  const m = Math.min(100, Math.max(0, parseInt(document.getElementById('fan-main-val').value)    || 0));
+  const c = Math.min(100, Math.max(0, parseInt(document.getElementById('fan-cooling-val').value) || 0));
+  lockField('fan_main');    // prevent MQTT from overwriting inputs for 4 s
+  lockField('fan_cooling');
+  publish('cmd/fan_main',    String(m));
+  publish('cmd/fan_cooling', String(c));
+  showToast('Vitesses ventilateur appliquées');
+}
+
+function setAutoSP(isAuto) {
+  lockField('auto_setpoint');
+  techAutoSP = isAuto;
+  publish('cmd/auto_setpoint', isAuto ? '1' : '0');
+  document.getElementById('setpoint-manual-ctrls').style.display = isAuto ? 'none' : 'block';
+}
+
+function applySetpoint() {
+  const sp = parseInt(document.getElementById('tech-setpoint-input').value) || 325;
+  publish('cmd/setpoint', String(sp));
+  showToast('Consigne → ' + sp + '°C');
+}
+
+function setAutoInsertEn(enabled) {
+  lockField('auto_insert');
+  techAutoInsertOn = enabled;
+  publish('cmd/auto_insert_en', enabled ? '1' : '0');
+  const mb = document.getElementById('manual-insert-btn');
+  if (mb) mb.style.display = enabled ? 'none' : '';
+  showToast('Insertion automatique ' + (enabled ? 'activée' : 'désactivée'));
+}
+
+function setMaxTempEnabled(enabled) {
+  lockField('max_temp_prot');
+  publish('cmd/max_temp', enabled ? '1' : '0');
+  document.getElementById('max-temp-val-row').style.display = enabled ? 'block' : 'none';
+}
+
+function applyMaxTemp() {
+  const val = parseInt(document.getElementById('max-temp-threshold').value) || 500;
+  publish('cmd/max_temp_val', String(val));
+  showToast('Seuil temp. max → ' + val + '°C');
+}
+
+function setEcoMode(enabled) {
+  lockField('eco_mode');
+  publish('cmd/eco_mode', enabled ? '1' : '0');
+  document.getElementById('normal-floor-row').style.display = enabled ? 'none' : 'block';
+  showToast('Mode Éco ' + (enabled ? 'ACTIVÉ 🌿' : 'DÉSACTIVÉ'));
+}
+
+function applyNormalFloor() {
+  const val = Math.min(70, Math.max(0, parseInt(document.getElementById('normal-floor-val').value) || 65));
+  publish('cmd/normal_floor', String(val));
+  showToast('Plancher mode normal → ' + val + '%');
+}
+
+function techMotor(dir) {
+  const steps = parseInt(document.getElementById('motor-steps').value) || 200;
+  // Payload format: "<side>:<steps>"  e.g. "l:200"
+  publish('cmd/motor_' + dir, mapSide(techSide) + ':' + String(steps));
+  const sideName = techSide === 'l' ? 'gauche' : 'droit';
+  showToast('Moteur ' + dir + ' — ' + steps + ' pas (' + sideName + ')');
+}
+
+function techPiston(action) {
+  // Payload: mapped side — so firmware knows which physical side to operate
+  publish('cmd/piston_' + action, mapSide(techSide));
+  const labels = { extend:'Étendre', retract:'Rétracter', stop:'Arrêt', tare:'Tare' };
+  const sideName = techSide === 'l' ? 'gauche' : 'droit';
+  showToast('Piston ' + (labels[action] || action) + ' — ' + sideName);
+}
+
+function techInsert() {
+  const sideName = techSide === 'l' ? 'gauche' : 'droit';
+  if (!confirm('Déclencher l\'insertion côté ' + sideName + ' ?')) return;
+  publish('cmd/insert', mapSide(techSide));
+  showToast('Insertion déclenchée — côté ' + sideName);
+}
+
+function techReset() {
+  if (!confirm('Redémarrer le contrôleur ESP32 ?')) return;
+  publish('cmd/reset', '1');
+  showToast('ESP32 en cours de redémarrage…');
+}
+
+function setSimTemp() {
+  const t = parseFloat(document.getElementById('sim-temp-val').value);
+  if (isNaN(t) || t < 0 || t > 1000) { showToast('Entrez 0–1000 °C'); return; }
+  publish('cmd/input_temp', String(t));
+  showToast('Temp. simulée → ' + t + '°C');
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ============================================================
+// HEAP MONITOR
+// ============================================================
+function applyHeap(freeB, minFreeB, maxAllocB) {
+  const freeKB    = (freeB    / 1024).toFixed(1);
+  const minFreeKB = (minFreeB / 1024).toFixed(1);
+
+  document.getElementById('heap-free-val').textContent = freeKB    + ' KB';
+  document.getElementById('heap-min-val').textContent  = minFreeKB + ' KB';
+
+  // Bar: ESP32-S3 internal SRAM usable ~330 KB (rough upper bound)
+  const pct = Math.min(100, Math.round(freeB / 337920 * 100));
+  const bar = document.getElementById('heap-bar');
+  bar.style.width = pct + '%';
+
+  // Colour coding:  red < 20 KB  |  orange < 50 KB  |  green ≥ 50 KB
+  const colour = minFreeB < 20000 ? '#e74c3c' : minFreeB < 50000 ? '#f39c12' : '#2ecc71';
+  bar.style.background = colour;
+  document.getElementById('heap-min-val').style.color =
+    minFreeB < 20000 ? '#e74c3c' : minFreeB < 50000 ? '#f39c12' : 'rgba(255,255,255,.75)';
+}
+
+// ============================================================
+// SETTINGS — ALERTS
+// ============================================================
+function loadSettings() {
+  const alerts = JSON.parse(localStorage.getItem(LS_ALERTS) || '{}');
+  for (let i = 1; i <= 3; i++) {
+    if (alerts['email'+i] !== undefined) document.getElementById('alert-email-'+i).value   = alerts['email'+i];
+    if (alerts['phone'+i] !== undefined) document.getElementById('alert-phone-'+i).value   = alerts['phone'+i];
+    if (alerts['en'+i]    !== undefined) document.getElementById('alert-en-'+i).checked     = alerts['en'+i];
+  }
+  const house = JSON.parse(localStorage.getItem(LS_HOUSE) || '{}');
+  if (house.size)       document.getElementById('house-size').value = house.size;
+  if (house.insulation) setInsulation(house.insulation, false);
+}
+
+function saveAlerts() {
+  const alerts = {};
+  let anyEnabled = false;
+  for (let i = 1; i <= 3; i++) {
+    alerts['email'+i] = document.getElementById('alert-email-'+i).value.trim();
+    alerts['phone'+i] = document.getElementById('alert-phone-'+i).value.trim();
+    alerts['en'+i]    = document.getElementById('alert-en-'+i).checked;
+    if (alerts['en'+i]) anyEnabled = true;
+  }
+  if (!anyEnabled) { alert('Au moins une alerte doit être activée.'); return; }
+  localStorage.setItem(LS_ALERTS, JSON.stringify(alerts));
+  publish('cmd/alert_cfg', JSON.stringify(alerts));
+  alert('Alertes enregistrées.');
+}
+
+// ============================================================
+// SETTINGS — MAINTENANCE
+// ============================================================
+function replaceJoint() {
+  const temp = parseFloat(document.getElementById('stove-temp').textContent);
+  if (!isNaN(temp) && temp > 100) {
+    alert('Le poêle est au-dessus de 100°. Laissez-le refroidir avant de remplacer le joint.');
+    return;
+  }
+  if (!confirm('Ouvrir la trappe pour remplacer le joint (5 secondes) ?')) return;
+  const side = faultSide || 'l';
+  publish('cmd/door_' + side, '1');
+  setTimeout(() => publish('cmd/door_' + side, '0'), 5000);
+}
+
+// ============================================================
+// SETTINGS — HOUSE PARAMS
+// ============================================================
+function setInsulation(val, save = true) {
+  insulation = val;
+  ['poor','average','good'].forEach(v =>
+    document.getElementById('ins-'+v).classList.toggle('active', v === val)
+  );
+  if (save) saveHouseParamsLocal();
+}
+
+function saveHouseParamsLocal() {
+  localStorage.setItem(LS_HOUSE, JSON.stringify({
+    size: document.getElementById('house-size').value,
+    insulation
+  }));
+}
+
+function saveHouseParams() {
+  saveHouseParamsLocal();
+  publish('cmd/house_params', JSON.stringify({
+    size: document.getElementById('house-size').value,
+    insulation
+  }));
+  alert('Paramètres de la maison enregistrés.');
+}
+
+// ============================================================
+// UI TOGGLES
+// ============================================================
+function toggleSettings() {
+  settingsOpen = !settingsOpen;
+  document.getElementById('settings-body').classList.toggle('open', settingsOpen);
+  document.getElementById('settings-arrow').classList.toggle('open', settingsOpen);
+}
+</script>
+</body>
+</html>
