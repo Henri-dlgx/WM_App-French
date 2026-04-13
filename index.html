@@ -132,9 +132,9 @@
     .alert-row{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center;
       padding:10px;background:#f9f5f1;border-radius:10px}
     .alert-fields{display:flex;flex-direction:column;gap:5px}
-    .alert-fields input{padding:7px 10px;border:1px solid #d0b08a;border-radius:7px;
+    .alert-fields input,.alert-fields select{padding:7px 10px;border:1px solid #d0b08a;border-radius:7px;
       font-size:.84rem;width:100%}
-    .alert-fields input:focus{outline:none;border-color:#8B4513}
+    .alert-fields input:focus,.alert-fields select:focus{outline:none;border-color:#8B4513}
     input[type=checkbox]{width:19px;height:19px;accent-color:#8B4513;cursor:pointer;
       margin-left:4px}
     /* Maintenance rows */
@@ -311,21 +311,60 @@
           <div class="alert-row">
             <div class="alert-fields">
               <input type="email" id="alert-email-1" placeholder="Adresse e-mail"/>
-              <input type="tel"   id="alert-phone-1" placeholder="Téléphone  ex. +33 6 12 34 56 78"/>
+              <select id="alert-op-1" onchange="onAlertOpChange(1)">
+                <option value="0">Pas de SMS</option>
+                <option value="1">Orange</option>
+                <option value="2">SFR</option>
+                <option value="3">Bouygues</option>
+                <option value="4">Free Mobile</option>
+              </select>
+              <div id="alert-phone-wrap-1" style="display:none;">
+                <input type="tel" id="alert-phone-1" placeholder="Téléphone (ex. 0612345678)" style="width:100%;box-sizing:border-box;"/>
+              </div>
+              <div id="alert-free-wrap-1" style="display:none;">
+                <input type="text"     id="alert-free-uid-1" placeholder="Identifiant abonné Free" style="width:100%;box-sizing:border-box;margin-bottom:4px;"/>
+                <input type="password" id="alert-free-key-1" placeholder="Clé API Free"            style="width:100%;box-sizing:border-box;"/>
+              </div>
             </div>
             <input type="checkbox" id="alert-en-1" checked/>
           </div>
           <div class="alert-row">
             <div class="alert-fields">
               <input type="email" id="alert-email-2" placeholder="Adresse e-mail"/>
-              <input type="tel"   id="alert-phone-2" placeholder="Téléphone  ex. +33 6 12 34 56 78"/>
+              <select id="alert-op-2" onchange="onAlertOpChange(2)">
+                <option value="0">Pas de SMS</option>
+                <option value="1">Orange</option>
+                <option value="2">SFR</option>
+                <option value="3">Bouygues</option>
+                <option value="4">Free Mobile</option>
+              </select>
+              <div id="alert-phone-wrap-2" style="display:none;">
+                <input type="tel" id="alert-phone-2" placeholder="Téléphone (ex. 0612345678)" style="width:100%;box-sizing:border-box;"/>
+              </div>
+              <div id="alert-free-wrap-2" style="display:none;">
+                <input type="text"     id="alert-free-uid-2" placeholder="Identifiant abonné Free" style="width:100%;box-sizing:border-box;margin-bottom:4px;"/>
+                <input type="password" id="alert-free-key-2" placeholder="Clé API Free"            style="width:100%;box-sizing:border-box;"/>
+              </div>
             </div>
             <input type="checkbox" id="alert-en-2"/>
           </div>
           <div class="alert-row">
             <div class="alert-fields">
               <input type="email" id="alert-email-3" placeholder="Adresse e-mail"/>
-              <input type="tel"   id="alert-phone-3" placeholder="Téléphone  ex. +33 6 12 34 56 78"/>
+              <select id="alert-op-3" onchange="onAlertOpChange(3)">
+                <option value="0">Pas de SMS</option>
+                <option value="1">Orange</option>
+                <option value="2">SFR</option>
+                <option value="3">Bouygues</option>
+                <option value="4">Free Mobile</option>
+              </select>
+              <div id="alert-phone-wrap-3" style="display:none;">
+                <input type="tel" id="alert-phone-3" placeholder="Téléphone (ex. 0612345678)" style="width:100%;box-sizing:border-box;"/>
+              </div>
+              <div id="alert-free-wrap-3" style="display:none;">
+                <input type="text"     id="alert-free-uid-3" placeholder="Identifiant abonné Free" style="width:100%;box-sizing:border-box;margin-bottom:4px;"/>
+                <input type="password" id="alert-free-key-3" placeholder="Clé API Free"            style="width:100%;box-sizing:border-box;"/>
+              </div>
             </div>
             <input type="checkbox" id="alert-en-3"/>
           </div>
@@ -964,12 +1003,22 @@ function showToast(msg) {
 // ============================================================
 // SETTINGS — ALERTS
 // ============================================================
+function onAlertOpChange(i) {
+  const op = parseInt(document.getElementById('alert-op-' + i).value);
+  document.getElementById('alert-phone-wrap-' + i).style.display = (op > 0 && op < 4) ? 'block' : 'none';
+  document.getElementById('alert-free-wrap-'  + i).style.display = (op === 4)          ? 'block' : 'none';
+}
+
 function loadSettings() {
   const alerts = JSON.parse(localStorage.getItem(LS_ALERTS) || '{}');
   for (let i = 1; i <= 3; i++) {
-    if (alerts['email'+i] !== undefined) document.getElementById('alert-email-'+i).value   = alerts['email'+i];
-    if (alerts['phone'+i] !== undefined) document.getElementById('alert-phone-'+i).value   = alerts['phone'+i];
-    if (alerts['en'+i]    !== undefined) document.getElementById('alert-en-'+i).checked     = alerts['en'+i];
+    if (alerts['email'+i]   !== undefined) document.getElementById('alert-email-'+i).value    = alerts['email'+i];
+    if (alerts['op'+i]      !== undefined) document.getElementById('alert-op-'+i).value       = alerts['op'+i];
+    if (alerts['phone'+i]   !== undefined) document.getElementById('alert-phone-'+i).value    = alerts['phone'+i];
+    if (alerts['freeUid'+i] !== undefined) document.getElementById('alert-free-uid-'+i).value = alerts['freeUid'+i];
+    if (alerts['freeKey'+i] !== undefined) document.getElementById('alert-free-key-'+i).value = alerts['freeKey'+i];
+    if (alerts['en'+i]      !== undefined) document.getElementById('alert-en-'+i).checked      = alerts['en'+i];
+    onAlertOpChange(i);
   }
   const house = JSON.parse(localStorage.getItem(LS_HOUSE) || '{}');
   if (house.size)       document.getElementById('house-size').value = house.size;
@@ -980,9 +1029,13 @@ function saveAlerts() {
   const alerts = {};
   let anyEnabled = false;
   for (let i = 1; i <= 3; i++) {
-    alerts['email'+i] = document.getElementById('alert-email-'+i).value.trim();
-    alerts['phone'+i] = document.getElementById('alert-phone-'+i).value.trim();
-    alerts['en'+i]    = document.getElementById('alert-en-'+i).checked;
+    const op = parseInt(document.getElementById('alert-op-'+i).value);
+    alerts['email'+i]   = document.getElementById('alert-email-'+i).value.trim();
+    alerts['op'+i]      = op;
+    alerts['phone'+i]   = (op > 0 && op < 4) ? document.getElementById('alert-phone-'+i).value.trim() : '';
+    alerts['freeUid'+i] = (op === 4)          ? document.getElementById('alert-free-uid-'+i).value.trim() : '';
+    alerts['freeKey'+i] = (op === 4)          ? document.getElementById('alert-free-key-'+i).value.trim() : '';
+    alerts['en'+i]      = document.getElementById('alert-en-'+i).checked;
     if (alerts['en'+i]) anyEnabled = true;
   }
   if (!anyEnabled) { alert('Au moins une alerte doit être activée.'); return; }
