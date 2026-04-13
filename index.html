@@ -280,7 +280,7 @@
       <div class="main-temp-half">
         <div class="wanted-controls">
           <button class="adj-btn" onclick="adjustRoom(-1)">−</button>
-          <div id="room-val">20°</div>
+          <div id="room-val">T3</div>
           <button class="adj-btn" onclick="adjustRoom(+1)">+</button>
         </div>
         <div class="temp-small-label">Température souhaitée</div>
@@ -681,7 +681,7 @@ window.addEventListener('load', () => {
   }
   renderBars('left',  0);
   renderBars('right', 0);
-  document.getElementById('room-val').textContent = roomTemp + '°';
+  document.getElementById('room-val').textContent = 'T' + (roomTemp - 17);
 });
 
 function fillForm() {
@@ -861,7 +861,7 @@ function applyFull(d) {
     const r = parseInt(d.room_setpoint);
     if (r >= 18 && r <= 26 && r !== roomTemp) {
       roomTemp = r;
-      document.getElementById('room-val').textContent = roomTemp + '°';
+      document.getElementById('room-val').textContent = 'T' + (roomTemp - 17);
       localStorage.setItem('woodmood_room_temp', roomTemp);
     }
   }
@@ -1133,7 +1133,7 @@ function mapSide(s) { return SWAP_SIDES ? (s === 'l' ? 'r' : 'l') : s; }
 
 function adjustRoom(delta) {
   roomTemp = Math.min(26, Math.max(18, (isNaN(roomTemp) ? 20 : roomTemp) + delta));
-  document.getElementById('room-val').textContent = roomTemp + '°';
+  document.getElementById('room-val').textContent = 'T' + (roomTemp - 17);
   localStorage.setItem('woodmood_room_temp', roomTemp);
   lockField('room_temp');   // prevent MQTT echo from overwriting immediately after a tap
   publish('cmd/room_temp', roomTemp);
