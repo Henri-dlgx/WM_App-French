@@ -166,34 +166,6 @@
       letter-spacing:.07em;margin-bottom:12px}
     .divider{border:none;border-top:1px solid #f0e0d0;margin:0}
 
-    /* ── Technical Mode ── */
-    .tech-sec{font-size:.68rem;font-weight:800;color:#8B4513;text-transform:uppercase;
-      letter-spacing:.12em;border-bottom:2px solid #f0e0d0;padding-bottom:6px;margin-bottom:12px}
-    .tech-field-lbl{font-size:.78rem;color:#888;margin-bottom:5px}
-    .tech-input{width:100%;padding:9px 12px;border:1px solid #d0b08a;border-radius:8px;
-      font-size:.95rem;box-sizing:border-box}
-    .tech-input:focus{outline:none;border-color:#8B4513}
-    .tech-manual-block{display:flex;flex-direction:column;gap:8px;margin-top:10px}
-    /* Toggle switch */
-    .toggle-wrap{display:flex;align-items:center;justify-content:space-between}
-    .toggle-label{font-size:.88rem;color:#444}
-    .tgl{position:relative;display:inline-block;width:48px;height:27px;flex-shrink:0}
-    .tgl input{opacity:0;width:0;height:0}
-    .tgl-sl{position:absolute;cursor:pointer;inset:0;background:#ccc;border-radius:27px;transition:.25s}
-    .tgl-sl:before{content:"";position:absolute;height:21px;width:21px;left:3px;bottom:3px;
-      background:#fff;border-radius:50%;transition:.25s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
-    input:checked + .tgl-sl{background:#27ae60}
-    input:checked + .tgl-sl:before{transform:translateX(21px)}
-    /* Side selector */
-    .side-sel{display:flex;background:#f5e8da;border-radius:10px;padding:3px;gap:3px;margin-bottom:4px}
-    .side-opt{flex:1;text-align:center;padding:9px 6px;border-radius:8px;font-weight:700;
-      font-size:.9rem;cursor:pointer;transition:background .2s,color .2s;color:#8B4513;user-select:none}
-    .side-opt.active{background:#8B4513;color:#fff}
-    /* Small badge shown next to section headers that use active side */
-    .side-badge{display:inline-block;background:#8B4513;color:#fff;border-radius:4px;
-      font-size:.6rem;padding:1px 7px;margin-left:7px;vertical-align:middle;letter-spacing:.03em}
-    .gap-col{display:flex;flex-direction:column;gap:8px}
-
     /* ── Toast ── */
     #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
       background:#2b1a0e;color:#f0d9c0;padding:10px 20px;border-radius:20px;
@@ -201,17 +173,6 @@
       transition:opacity .3s;z-index:200;white-space:nowrap}
     #toast.show{opacity:1}
 
-    /* ── Simulate button ── */
-    .btn-sim{background:#4a3728;color:#f0d9c0;border:2px dashed #8B7355}
-
-    /* ── Heap monitor ── */
-    .heap-row{display:flex;align-items:center;gap:10px;padding:7px 12px;
-      background:rgba(0,0,0,.28);border-radius:10px;font-size:.72rem;
-      color:rgba(255,255,255,.75)}
-    .heap-lbl{opacity:.7;white-space:nowrap}
-    .heap-bar-wrap{flex:1;background:rgba(255,255,255,.18);border-radius:4px;height:5px;overflow:hidden}
-    .heap-bar-fill{height:100%;border-radius:4px;transition:width .6s,background .6s;background:#2ecc71;width:0%}
-    .heap-val{font-weight:700;white-space:nowrap;min-width:48px;text-align:right}
   </style>
 </head>
 <body>
@@ -421,181 +382,6 @@
 
       <!-- Disconnect -->
       <button class="btn btn-gray btn-full" onclick="disconnect()">Déconnecter</button>
-
-    </div>
-  </div>
-
-  <!-- ── Heap Monitor ── -->
-  <div id="heap-monitor" style="display:none">
-    <div class="heap-row">
-      <span class="heap-lbl">Heap</span>
-      <div class="heap-bar-wrap"><div class="heap-bar-fill" id="heap-bar"></div></div>
-      <span class="heap-val" id="heap-free-val">—</span>
-      <span class="heap-lbl">·  min</span>
-      <span class="heap-val" id="heap-min-val">—</span>
-    </div>
-  </div>
-
-  <!-- ── Technical Mode ── -->
-  <div class="card">
-    <div class="settings-toggle" onclick="toggleTechMode()">
-      <span style="font-weight:700;color:#8B4513">⚙ Mode Technique</span>
-      <span class="arrow" id="tech-arrow">▼</span>
-    </div>
-    <div class="settings-body" id="tech-body">
-
-      <!-- SIDE SELECTOR -->
-      <div>
-        <div class="tech-sec">Côté actif</div>
-        <div class="side-sel">
-          <div class="side-opt active" id="side-opt-l" onclick="selectSide('l')">◀ GAUCHE</div>
-          <div class="side-opt"        id="side-opt-r" onclick="selectSide('r')">DROITE ▶</div>
-        </div>
-        <div class="row-btns" style="margin-top:10px">
-          <button class="btn btn-green"  onclick="techUnlockDoor()">🔓 Déverrouiller</button>
-          <button class="btn btn-orange" onclick="techRewind()">↺ Rembobiner</button>
-        </div>
-      </div>
-
-      <hr class="divider">
-
-      <!-- FAN CONTROL -->
-      <div>
-        <div class="tech-sec">Contrôle du ventilateur</div>
-        <div class="side-sel" style="margin-bottom:6px">
-          <div class="side-opt active" id="fan-mode-auto"   onclick="setFanMode(false)">⚡ AUTO</div>
-          <div class="side-opt"        id="fan-mode-manual" onclick="setFanMode(true)">✋ MANUEL</div>
-        </div>
-        <div style="display:flex;gap:10px;justify-content:center;margin:2px 0 6px;font-size:.72rem;color:#888">
-          <span>Principal&thinsp;<b id="fan-main-live" style="color:#5a2d0c;font-size:.82rem">—</b>%</span>
-          <span style="color:#ccc">|</span>
-          <span>Refroid.&thinsp;<b id="fan-cooling-live" style="color:#5a2d0c;font-size:.82rem">—</b>%</span>
-        </div>
-        <div id="fan-manual-ctrls" class="tech-manual-block" style="display:none">
-          <div>
-            <div class="tech-field-lbl">Vitesse ventilateur principal (%)</div>
-            <input id="fan-main-val" class="tech-input" type="number" min="0" max="100" value="50">
-          </div>
-          <div>
-            <div class="tech-field-lbl">Vitesse ventilateur refroidissement (%)</div>
-            <input id="fan-cooling-val" class="tech-input" type="number" min="0" max="100" value="30">
-          </div>
-          <button class="btn btn-brown btn-full" onclick="applyFanSpeeds()">Appliquer les vitesses</button>
-        </div>
-      </div>
-
-      <hr class="divider">
-
-      <!-- AUTOMATIC INSERTION -->
-      <div>
-        <div class="tech-sec">Insertion automatique</div>
-        <div class="toggle-wrap">
-          <span class="toggle-label">Insertion auto</span>
-          <label class="tgl"><input type="checkbox" id="tog-auto-insert" onchange="setAutoInsertEn(this.checked)"><span class="tgl-sl"></span></label>
-        </div>
-        <button class="btn btn-red btn-full" id="manual-insert-btn" style="margin-top:12px" onclick="techInsert()">▶▶ Insérer manuellement</button>
-      </div>
-
-      <hr class="divider">
-
-      <!-- TEMPERATURE CONTROL -->
-      <div>
-        <div class="tech-sec">Contrôle de température</div>
-        <div class="toggle-wrap">
-          <span class="toggle-label">Consigne automatique</span>
-          <label class="tgl"><input type="checkbox" id="tog-auto-setpoint" onchange="setAutoSP(this.checked)"><span class="tgl-sl"></span></label>
-        </div>
-        <div id="setpoint-manual-ctrls" style="display:none;margin-top:10px">
-          <div class="tech-field-lbl">Consigne manuelle (°C)</div>
-          <input id="tech-setpoint-input" class="tech-input" type="number" min="100" max="500" value="325">
-          <button class="btn btn-brown btn-full" style="margin-top:8px" onclick="applySetpoint()">Appliquer la consigne</button>
-        </div>
-      </div>
-
-      <hr class="divider">
-
-      <!-- SYSTEM OPTIONS -->
-      <div>
-        <div class="tech-sec">Options système</div>
-        <div class="toggle-wrap">
-          <span class="toggle-label">Bip sonore</span>
-          <label class="tgl"><input type="checkbox" id="tog-beeper" onchange="setBeeperEn(this.checked)"><span class="tgl-sl"></span></label>
-        </div>
-        <div class="toggle-wrap" style="margin-top:12px">
-          <span class="toggle-label">Protection température max</span>
-          <label class="tgl"><input type="checkbox" id="tog-max-temp" onchange="setMaxTempEnabled(this.checked)"><span class="tgl-sl"></span></label>
-        </div>
-        <div id="max-temp-val-row" style="display:none;margin-top:10px">
-          <div class="tech-field-lbl">Seuil de limitation (°C)</div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <input id="max-temp-threshold" class="tech-input" type="number" min="200" max="600" value="500" style="flex:1">
-            <button class="btn btn-brown btn-sm" style="flex:none" onclick="applyMaxTemp()">Définir</button>
-          </div>
-        </div>
-        <div class="toggle-wrap" style="margin-top:12px">
-          <span class="toggle-label">🍃 Mode Éco <span style="font-size:.75rem;color:rgba(255,255,255,.55);font-weight:400">(plancher 51%)</span></span>
-          <label class="tgl"><input type="checkbox" id="tog-eco-mode" onchange="setEcoMode(this.checked)"><span class="tgl-sl"></span></label>
-        </div>
-        <div id="normal-floor-row" style="display:none;margin-top:10px">
-          <div class="tech-field-lbl">Plancher mode normal (%)</div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <input id="normal-floor-val" class="tech-input" type="number" min="0" max="70" value="65" style="flex:1">
-            <button class="btn btn-brown btn-sm" style="flex:none" onclick="applyNormalFloor()">Définir</button>
-          </div>
-        </div>
-      </div>
-
-      <hr class="divider">
-
-      <!-- MANUAL MOTOR CONTROL -->
-      <div>
-        <div class="tech-sec">Contrôle moteur manuel<span id="motor-side-lbl" class="side-badge">◀ G</span></div>
-        <div class="tech-field-lbl">Pas</div>
-        <input id="motor-steps" class="tech-input" type="number" value="200" min="1" max="9999">
-        <div class="row-btns" style="margin-top:10px;margin-bottom:8px">
-          <button class="btn btn-brown" onclick="techMotor('forward')">▶ Avant</button>
-          <button class="btn btn-brown" onclick="techMotor('backward')">◀ Arrière</button>
-        </div>
-        <div class="row-btns">
-          <button class="btn btn-gray" onclick="publish('cmd/motor_stop','1')">⏹ Arrêt</button>
-          <button class="btn btn-blue" onclick="publish('cmd/motor_home', mapSide(techSide))">🏠 Origine</button>
-        </div>
-      </div>
-
-      <hr class="divider">
-
-      <!-- MANUAL PISTON CONTROL -->
-      <div>
-        <div class="tech-sec">Contrôle piston manuel<span id="piston-side-lbl" class="side-badge">◀ G</span></div>
-        <div class="row-btns" style="margin-bottom:8px">
-          <button class="btn btn-green"  onclick="techPiston('extend')">↑ Étendre</button>
-          <button class="btn btn-orange" onclick="techPiston('retract')">↓ Rétracter</button>
-        </div>
-        <div class="row-btns">
-          <button class="btn btn-gray" onclick="techPiston('stop')">⏹ Arrêt</button>
-          <button class="btn btn-gray" onclick="techPiston('tare')">⊕ Tare</button>
-        </div>
-      </div>
-
-      <hr class="divider">
-
-      <!-- SIM TEMP (INPUT_TEMP firmware build only) -->
-      <div>
-        <div class="tech-sec">Temp. poêle simulée</div>
-        <div class="tech-field-lbl">Forcer le thermocouple (°C) — nécessite le firmware INPUT_TEMP</div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input id="sim-temp-val" class="tech-input" type="number" min="0" max="1000" value="300" placeholder="°C" style="flex:1">
-          <button class="btn btn-brown btn-sm" style="flex:none" onclick="setSimTemp()">Définir</button>
-        </div>
-      </div>
-
-      <!-- SYSTEM CONTROL -->
-      <div>
-        <div class="tech-sec">Contrôle système</div>
-        <button class="btn btn-red btn-full" onclick="techReset()">↺ Réinitialiser ESP32</button>
-        <p style="font-size:.72rem;color:#aaa;margin-top:8px;text-align:center">Attention : cela redémarrera le contrôleur</p>
-        <p style="font-size:.7rem;color:#bbb;margin-top:4px;text-align:center">Version · Mar 2026</p>
-      </div>
 
     </div>
   </div>
@@ -818,13 +604,6 @@ function onMessage(topic, payloadBuf) {
   if (sub === 'status/maint_ramon')  { document.getElementById('ramon-days').textContent = payload + ' jours depuis le dernier'; return; }
   if (sub === 'status/maint_seal')   { document.getElementById('seal-days').textContent  = payload + ' jours'; return; }
 
-  if (sub === 'status/heap') {
-    try {
-      const h = JSON.parse(payload);
-      if (h.free !== undefined) applyHeap(h.free, h.min_free, h.max_alloc);
-    } catch(e) {}
-    return;
-  }
 }
 
 // ============================================================
@@ -879,12 +658,10 @@ function applyFull(d) {
       + d.local_ip + '/update</a>'
       + ' <span style="opacity:.55">pwd: &lt;MQTT password&gt;</span>';
   }
-  if (d.heap_free !== undefined) applyHeap(d.heap_free, d.heap_min || 0, d.heap_max_alloc || 0);
   if (d.maint_joint !== undefined) document.getElementById('joint-days').textContent = d.maint_joint + ' jours';
   if (d.maint_ramon !== undefined) document.getElementById('ramon-days').textContent = d.maint_ramon + ' jours depuis le dernier';
   if (d.maint_seal  !== undefined) document.getElementById('seal-days').textContent  = d.maint_seal  + ' jours';
 
-  applyTechState(d);
   calcBurnTime();
   updateSystemState();
 }
@@ -1173,217 +950,6 @@ function calcBurnTime() {
 }
 
 // ============================================================
-// SIMULATE INSERTION — now triggers a real insertion sequence
-// ============================================================
-function simulateInsertion() {
-  if (!confirm('Déclencher une vraie séquence d\'insertion sur le poêle ?')) return;
-  publish('cmd/insert', mapSide(techSide));
-  showToast('Insertion déclenchée — côté ' + (techSide === 'l' ? 'gauche' : 'droit'));
-}
-
-// ============================================================
-// TECHNICAL MODE
-// ============================================================
-let techFanManual    = false;
-let techAutoInsertOn = true;
-let techAutoSP       = true;
-let techSide         = 'l';
-
-function selectSide(s) {
-  techSide = s;
-  document.getElementById('side-opt-l').classList.toggle('active', s === 'l');
-  document.getElementById('side-opt-r').classList.toggle('active', s === 'r');
-  // Update side badges on Motor and Piston section headers
-  const lbl = s === 'l' ? '◀ G' : 'D ▶';
-  ['motor-side-lbl', 'piston-side-lbl'].forEach(function(id) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = lbl;
-  });
-}
-
-function techUnlockDoor() {
-  publish('cmd/door_' + mapSide(techSide), '1');
-  showToast('Déverrouillage porte ' + (techSide === 'l' ? 'gauche' : 'droite') + '…');
-}
-
-function techRewind() {
-  publish('cmd/motor_home', mapSide(techSide));
-  showToast('Rembobinage cartouche ' + (techSide === 'l' ? 'gauche' : 'droite') + '…');
-}
-
-function toggleTechMode() {
-  const body  = document.getElementById('tech-body');
-  const arrow = document.getElementById('tech-arrow');
-  const open  = body.classList.contains('open');
-  body.classList.toggle('open', !open);
-  arrow.classList.toggle('open', !open);
-}
-
-function applyTechState(d) {
-  const focused = document.activeElement;
-  if (d.fan_mode !== undefined && !isLocked('fan_mode')) {
-    techFanManual = d.fan_mode === 'manual';
-    document.getElementById('fan-mode-auto').classList.toggle('active',   !techFanManual);
-    document.getElementById('fan-mode-manual').classList.toggle('active',  techFanManual);
-    document.getElementById('fan-manual-ctrls').style.display = techFanManual ? 'flex' : 'none';
-  }
-  // Live fan speed readout — always reflects actual firmware state
-  if (d.fan_main    !== undefined) document.getElementById('fan-main-live').textContent    = d.fan_main;
-  if (d.fan_cooling !== undefined) document.getElementById('fan-cooling-live').textContent = d.fan_cooling;
-  // Only sync fan/setpoint inputs when the user is not typing in them
-  // and no manual Set command is in flight (4 s lock after applyFanSpeeds).
-  if (d.fan_main !== undefined && !isLocked('fan_main')) {
-    const el = document.getElementById('fan-main-val');
-    if (el !== focused) el.value = d.fan_main;
-  }
-  if (d.fan_cooling !== undefined && !isLocked('fan_cooling')) {
-    const el = document.getElementById('fan-cooling-val');
-    if (el !== focused) el.value = d.fan_cooling;
-  }
-  if (d.auto_setpoint !== undefined && !isLocked('auto_setpoint')) {
-    techAutoSP = !!d.auto_setpoint;
-    document.getElementById('tog-auto-setpoint').checked = techAutoSP;
-    document.getElementById('setpoint-manual-ctrls').style.display = techAutoSP ? 'none' : 'block';
-  }
-  if (d.setpoint !== undefined) {
-    const el = document.getElementById('tech-setpoint-input');
-    if (el !== focused) el.value = d.setpoint;
-  }
-  if (d.beeper !== undefined && !isLocked('beeper'))
-    document.getElementById('tog-beeper').checked = !!d.beeper;
-  if (d.max_temp_prot !== undefined && !isLocked('max_temp_prot')) {
-    document.getElementById('tog-max-temp').checked = !!d.max_temp_prot;
-    document.getElementById('max-temp-val-row').style.display = d.max_temp_prot ? 'block' : 'none';
-  }
-  if (d.max_temp_val !== undefined) {
-    const el = document.getElementById('max-temp-threshold');
-    if (el !== focused) el.value = d.max_temp_val;
-  }
-  if (d.eco_mode !== undefined && !isLocked('eco_mode')) {
-    document.getElementById('tog-eco-mode').checked = !!d.eco_mode;
-    document.getElementById('normal-floor-row').style.display = d.eco_mode ? 'none' : 'block';
-  }
-  if (d.norm_floor !== undefined) {
-    const el = document.getElementById('normal-floor-val');
-    if (el !== focused) el.value = d.norm_floor;
-  }
-  if (d.auto_insert !== undefined && !isLocked('auto_insert')) {
-    techAutoInsertOn = !!d.auto_insert;
-    document.getElementById('tog-auto-insert').checked = techAutoInsertOn;
-    const mb = document.getElementById('manual-insert-btn');
-    if (mb) mb.style.display = techAutoInsertOn ? 'none' : '';
-  }
-  // fault_ready is now handled entirely by setFault() above; no override here
-}
-
-function setBeeperEn(enabled) {
-  lockField('beeper');
-  publish('cmd/beeper', enabled ? '1' : '0');
-}
-
-function setFanMode(isManual) {
-  lockField('fan_mode');
-  techFanManual = isManual;
-  publish('cmd/fan_mode', isManual ? 'manual' : 'auto');
-  document.getElementById('fan-mode-auto').classList.toggle('active',   !isManual);
-  document.getElementById('fan-mode-manual').classList.toggle('active',  isManual);
-  document.getElementById('fan-manual-ctrls').style.display = isManual ? 'flex' : 'none';
-}
-
-function applyFanSpeeds() {
-  const m = Math.min(100, Math.max(0, parseInt(document.getElementById('fan-main-val').value)    || 0));
-  const c = Math.min(100, Math.max(0, parseInt(document.getElementById('fan-cooling-val').value) || 0));
-  lockField('fan_main');    // prevent MQTT from overwriting inputs for 4 s
-  lockField('fan_cooling');
-  publish('cmd/fan_main',    String(m));
-  publish('cmd/fan_cooling', String(c));
-  showToast('Vitesses ventilateur appliquées');
-}
-
-function setAutoSP(isAuto) {
-  lockField('auto_setpoint');
-  techAutoSP = isAuto;
-  publish('cmd/auto_setpoint', isAuto ? '1' : '0');
-  document.getElementById('setpoint-manual-ctrls').style.display = isAuto ? 'none' : 'block';
-}
-
-function applySetpoint() {
-  const sp = parseInt(document.getElementById('tech-setpoint-input').value) || 325;
-  publish('cmd/setpoint', String(sp));
-  showToast('Consigne → ' + sp + '°C');
-}
-
-function setAutoInsertEn(enabled) {
-  lockField('auto_insert');
-  techAutoInsertOn = enabled;
-  publish('cmd/auto_insert_en', enabled ? '1' : '0');
-  const mb = document.getElementById('manual-insert-btn');
-  if (mb) mb.style.display = enabled ? 'none' : '';
-  showToast('Insertion automatique ' + (enabled ? 'activée' : 'désactivée'));
-}
-
-function setMaxTempEnabled(enabled) {
-  lockField('max_temp_prot');
-  publish('cmd/max_temp', enabled ? '1' : '0');
-  document.getElementById('max-temp-val-row').style.display = enabled ? 'block' : 'none';
-}
-
-function applyMaxTemp() {
-  const val = parseInt(document.getElementById('max-temp-threshold').value) || 500;
-  publish('cmd/max_temp_val', String(val));
-  showToast('Seuil temp. max → ' + val + '°C');
-}
-
-function setEcoMode(enabled) {
-  lockField('eco_mode');
-  publish('cmd/eco_mode', enabled ? '1' : '0');
-  document.getElementById('normal-floor-row').style.display = enabled ? 'none' : 'block';
-  showToast('Mode Éco ' + (enabled ? 'ACTIVÉ 🌿' : 'DÉSACTIVÉ'));
-}
-
-function applyNormalFloor() {
-  const val = Math.min(70, Math.max(0, parseInt(document.getElementById('normal-floor-val').value) || 65));
-  publish('cmd/normal_floor', String(val));
-  showToast('Plancher mode normal → ' + val + '%');
-}
-
-function techMotor(dir) {
-  const steps = parseInt(document.getElementById('motor-steps').value) || 200;
-  // Payload format: "<side>:<steps>"  e.g. "l:200"
-  publish('cmd/motor_' + dir, mapSide(techSide) + ':' + String(steps));
-  const sideName = techSide === 'l' ? 'gauche' : 'droit';
-  showToast('Moteur ' + dir + ' — ' + steps + ' pas (' + sideName + ')');
-}
-
-function techPiston(action) {
-  // Payload: mapped side — so firmware knows which physical side to operate
-  publish('cmd/piston_' + action, mapSide(techSide));
-  const labels = { extend:'Étendre', retract:'Rétracter', stop:'Arrêt', tare:'Tare' };
-  const sideName = techSide === 'l' ? 'gauche' : 'droit';
-  showToast('Piston ' + (labels[action] || action) + ' — ' + sideName);
-}
-
-function techInsert() {
-  const sideName = techSide === 'l' ? 'gauche' : 'droit';
-  if (!confirm('Déclencher l\'insertion côté ' + sideName + ' ?')) return;
-  publish('cmd/insert', mapSide(techSide));
-  showToast('Insertion déclenchée — côté ' + sideName);
-}
-
-function techReset() {
-  if (!confirm('Redémarrer le contrôleur ESP32 ?')) return;
-  publish('cmd/reset', '1');
-  showToast('ESP32 en cours de redémarrage…');
-}
-
-function setSimTemp() {
-  const t = parseFloat(document.getElementById('sim-temp-val').value);
-  if (isNaN(t) || t < 0 || t > 1000) { showToast('Entrez 0–1000 °C'); return; }
-  publish('cmd/input_temp', String(t));
-  showToast('Temp. simulée → ' + t + '°C');
-}
-
-// ============================================================
 // TOAST
 // ============================================================
 let toastTimer = null;
@@ -1393,28 +959,6 @@ function showToast(msg) {
   el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
-}
-
-// ============================================================
-// HEAP MONITOR
-// ============================================================
-function applyHeap(freeB, minFreeB, maxAllocB) {
-  const freeKB    = (freeB    / 1024).toFixed(1);
-  const minFreeKB = (minFreeB / 1024).toFixed(1);
-
-  document.getElementById('heap-free-val').textContent = freeKB    + ' KB';
-  document.getElementById('heap-min-val').textContent  = minFreeKB + ' KB';
-
-  // Bar: ESP32-S3 internal SRAM usable ~330 KB (rough upper bound)
-  const pct = Math.min(100, Math.round(freeB / 337920 * 100));
-  const bar = document.getElementById('heap-bar');
-  bar.style.width = pct + '%';
-
-  // Colour coding:  red < 20 KB  |  orange < 50 KB  |  green ≥ 50 KB
-  const colour = minFreeB < 20000 ? '#e74c3c' : minFreeB < 50000 ? '#f39c12' : '#2ecc71';
-  bar.style.background = colour;
-  document.getElementById('heap-min-val').style.color =
-    minFreeB < 20000 ? '#e74c3c' : minFreeB < 50000 ? '#f39c12' : 'rgba(255,255,255,.75)';
 }
 
 // ============================================================
