@@ -180,7 +180,7 @@
 
   <!-- ── Header ── -->
   <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 2px">
-    <div class="logo">WoodMood</div>
+    <div class="logo">WooDMooD</div>
     <div class="status-badge" onclick="toggleConnPanel()">
       <div class="status-dot" id="status-dot"></div>
       <span id="status-label">Déconnecté</span>
@@ -257,7 +257,7 @@
 
   <!-- ── Log Cartridges ── -->
   <div class="card">
-    <div class="section-title">Cartouches de bûches</div>
+    <div class="section-title">Cassettes de bûches</div>
     <div class="cart-grid">
 
       <!-- Left -->
@@ -730,12 +730,12 @@ function applySystemState(state) {
   const btn    = document.getElementById('sys-btn');
   const labels = {
     startup:       'Démarrage',
-    auto:          'Fonctionnement automatique',
+    auto:          'Automatique',
     cooldown:      'Refroidissement',
     standby:       'Éteint — Appuyer pour démarrer',
     fault:         'Défaut détecté',
     shutting_down: 'Arrêt en cours',
-    active:        'Fonctionnement automatique',  // legacy fallback
+    active:        'Automatique',  // legacy fallback
   };
   btn.textContent = labels[state] || state;
   // Map firmware state names to CSS classes
