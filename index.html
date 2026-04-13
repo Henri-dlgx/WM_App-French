@@ -10,7 +10,7 @@
     *{box-sizing:border-box;margin:0;padding:0}
     body{
       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-      background:linear-gradient(135deg,#5C2E00 0%,#8B4513 50%,#D2691E 100%);
+      background:#000;
       min-height:100vh;padding:12px;
     }
     .wrap{max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
@@ -20,7 +20,7 @@
     .card-warm{background:#CD853F;color:#fff;border-radius:18px;padding:18px;box-shadow:0 4px 20px rgba(0,0,0,.35)}
 
     /* ── Header ── */
-    .logo{font-size:1.6rem;font-weight:700;color:#fff;text-shadow:0 2px 6px rgba(0,0,0,.5)}
+    .logo{font-size:1.6rem;font-weight:700;color:#949494;text-shadow:0 2px 6px rgba(0,0,0,.5)}
     .status-badge{display:flex;align-items:center;gap:7px;font-size:.82rem;color:#fff;
       background:rgba(0,0,0,.3);border-radius:20px;padding:6px 14px;cursor:pointer}
     .status-dot{width:11px;height:11px;border-radius:50%;background:#e74c3c;
@@ -613,7 +613,7 @@ function onMessage(topic, payloadBuf) {
 
   if (sub === 'status/temperature') {
     stoveTemp = parseFloat(payload);
-    document.getElementById('stove-temp').textContent = payload + '°';
+    document.getElementById('stove-temp').textContent = Math.round(parseFloat(payload)) + '°';
     updateSystemState(); return;
   }
   if (sub === 'status/room_temp') {
@@ -651,11 +651,11 @@ function onMessage(topic, payloadBuf) {
 function applyFull(d) {
   if (d.stove_temp !== undefined) {
     stoveTemp = parseFloat(d.stove_temp);
-    document.getElementById('stove-temp').textContent = d.stove_temp + '°';
+    document.getElementById('stove-temp').textContent = Math.round(parseFloat(d.stove_temp)) + '°';
   }
   if (d.setpoint !== undefined) {
     setpointVal = parseFloat(d.setpoint);
-    document.getElementById('setpoint-val').textContent = d.setpoint + '°';
+    document.getElementById('setpoint-val').textContent = Math.round(parseFloat(d.setpoint)) + '°';
   }
   if (d.room_temp !== undefined) {
     const val = parseFloat(d.room_temp);
@@ -714,13 +714,13 @@ function updateBleRoomTemp() {
   if (!el) return;
   if (bleRoomTempOk && bleRoomTemp !== null) {
     lastKnownBleTemp = bleRoomTemp;
-    el.textContent      = bleRoomTemp.toFixed(1) + '°';
+    el.textContent      = Math.round(bleRoomTemp) + '°';
     el.style.fontStyle  = 'normal';
     el.style.opacity    = '1';
     lbl.textContent     = 'Température actuelle';
     lbl.style.fontStyle = 'normal';
   } else if (lastKnownBleTemp !== null) {
-    el.textContent      = lastKnownBleTemp.toFixed(1) + '°';
+    el.textContent      = Math.round(lastKnownBleTemp) + '°';
     el.style.fontStyle  = 'italic';
     el.style.opacity    = '0.65';
     lbl.textContent     = 'Dernière mesure';
