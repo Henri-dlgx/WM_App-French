@@ -969,7 +969,7 @@ function updateLogCount(side) {
   if (side === 'l') logL = n; else logR = n;
   publish('cmd/log_level_' + mapSide(side), n);
   renderBars(side === 'l' ? 'left' : 'right', n);
-  document.getElementById(id).textContent = n + ' bûches';
+  document.getElementById(id).textContent = n ;
   calcBurnTime();
 }
 
