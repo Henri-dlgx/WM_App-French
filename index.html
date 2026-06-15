@@ -26,8 +26,8 @@
     .status-dot{width:11px;height:11px;border-radius:50%;background:#e74c3c;
       transition:background .4s;flex-shrink:0}
     .status-dot.connecting{background:#f39c12;animation:blink .8s infinite alternate}
-    .status-dot.connected {background:#f39c12}        /* orange = MQTT ok, no heartbeat */
-    .status-dot.alive     {background:#2ecc71;animation:hbpulse 1.2s infinite} /* green = heartbeat */
+    .status-dot.connected {background:#f39c12}        /* orange = MQTT ok, pas de heartbeat */
+    .status-dot.alive     {background:#2ecc71;animation:hbpulse 1.2s infinite} /* vert = heartbeat */
     @keyframes blink   {to{opacity:.3}}
     @keyframes hbpulse {50%{opacity:.4}}
 
@@ -82,7 +82,7 @@
       border:none;background:#8B4513;color:#fff;cursor:pointer;flex-shrink:0;
       font-weight:700;transition:filter .15s}
     .adj-btn:hover{filter:brightness(1.1)}
-    /* Main pair — current room temp + wanted temp */
+    /* Paire principale — température ambiante actuelle + température souhaitée */
     .main-temps-row{display:flex;margin-bottom:10px}
     .main-temp-half{flex:1;display:flex;flex-direction:column;align-items:center;
       justify-content:center;padding:8px 6px}
@@ -92,7 +92,7 @@
     .temp-big{font-size:2.6rem;font-weight:700;line-height:1}
     .temp-small-label{font-size:.65rem;opacity:.65;margin-top:6px;line-height:1.35;
       text-transform:uppercase;letter-spacing:.04em}
-    /* Stove internals — de-emphasised technical row */
+    /* Internes du poêle — ligne technique discrète */
     .stove-tech-row{display:flex;align-items:center;justify-content:center;gap:6px;
       border-top:1px solid rgba(255,255,255,.18);padding-top:9px;
       font-size:.75rem;opacity:.5;letter-spacing:.02em}
@@ -165,6 +165,29 @@
     .section-title{font-size:.75rem;font-weight:700;color:#8B4513;text-transform:uppercase;
       letter-spacing:.07em;margin-bottom:12px}
     .divider{border:none;border-top:1px solid #f0e0d0;margin:0}
+    .gap-col{display:flex;flex-direction:column;gap:8px}
+
+    /* ── Mode silencieux ── */
+    .silence-ctrl{display:flex;align-items:center;gap:8px}
+    .silence-icon{font-size:1.3rem;line-height:1;opacity:.4;transition:opacity .2s,filter .2s;filter:grayscale(1)}
+    .silence-icon.active{opacity:1;filter:none}
+    .silence-ctrl .tgl-sl{background:rgba(255,255,255,.25)}
+    #silence-toggle:checked + .tgl-sl{background:#c0392b}
+
+    /* ── Interrupteur à bascule ── */
+    .tgl{position:relative;display:inline-block;width:48px;height:27px;flex-shrink:0}
+    .tgl input{opacity:0;width:0;height:0}
+    .tgl-sl{position:absolute;cursor:pointer;inset:0;background:#ccc;border-radius:27px;transition:.25s}
+    .tgl-sl:before{content:"";position:absolute;height:21px;width:21px;left:3px;bottom:3px;
+      background:#fff;border-radius:50%;transition:.25s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+    input:checked + .tgl-sl{background:#27ae60}
+    input:checked + .tgl-sl:before{transform:translateX(21px)}
+
+    /* ── Programmation de température ── */
+    .sched-pt{cursor:ns-resize}
+    .sched-badge{font-size:.62rem;font-weight:700;color:#8B4513;background:rgba(139,69,19,.1);
+      border-radius:20px;padding:1px 7px;margin-top:3px;display:none;letter-spacing:.02em}
+    .sched-badge.active{display:inline-block}
 
     /* ── Toast ── */
     #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
@@ -173,6 +196,14 @@
       transition:opacity .3s;z-index:200;white-space:nowrap}
     #toast.show{opacity:1}
 
+    /* ── Moniteur heap ── */
+    .heap-row{display:flex;align-items:center;gap:10px;padding:7px 12px;
+      background:rgba(0,0,0,.28);border-radius:10px;font-size:.72rem;
+      color:rgba(255,255,255,.75)}
+    .heap-lbl{opacity:.7;white-space:nowrap}
+    .heap-bar-wrap{flex:1;background:rgba(255,255,255,.18);border-radius:4px;height:5px;overflow:hidden}
+    .heap-bar-fill{height:100%;border-radius:4px;transition:width .6s,background .6s;background:#2ecc71;width:0%}
+    .heap-val{font-weight:700;white-space:nowrap;min-width:48px;text-align:right}
   </style>
 </head>
 <body>
@@ -181,9 +212,15 @@
   <!-- ── Header ── -->
   <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 2px">
     <div class="logo">WooDMooD</div>
-    <div class="status-badge" onclick="toggleConnPanel()">
-      <div class="status-dot" id="status-dot"></div>
-      <span id="status-label">Déconnecté</span>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="silence-ctrl" title="Mode silencieux — pause les insertions de bûches">
+        <span class="silence-icon" id="silence-icon">🤫</span>
+        <label class="tgl"><input type="checkbox" id="silence-toggle" onchange="setSilenceMode(this.checked)"><span class="tgl-sl"></span></label>
+      </div>
+      <div class="status-badge" onclick="toggleConnPanel()">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-label">Déconnecté</span>
+      </div>
     </div>
   </div>
 
@@ -192,6 +229,7 @@
     <div class="section-title">Connexion au courtier</div>
     <div style="display:flex;flex-direction:column;gap:8px">
       <input class="conn-input" id="cfg-broker" placeholder="Courtier  ex. abc123.s1.eu.hivemq.cloud"/>
+      <input class="conn-input" id="cfg-port"   placeholder="Port WSS  ex. 8884" type="number"/>
       <input class="conn-input" id="cfg-user"   placeholder="Nom d'utilisateur"/>
       <input class="conn-input" id="cfg-pass"   placeholder="Mot de passe" type="password"/>
       <input class="conn-input" id="cfg-serial" placeholder="Numéro de série  ex. JJQF9D"/>
@@ -209,19 +247,19 @@
     <div class="fault-title">⚠️ DÉFAUT DÉTECTÉ</div>
     <div class="fault-side-badge" id="fault-side-badge">— Côté</div>
     <div class="fault-msg" id="fault-msg-text">Bûche coincée dans la trappe — suivez les étapes ci-dessous</div>
-    <!-- Phase 1: unlock door -->
+    <!-- Phase 1 : déverrouiller la porte -->
     <div id="fault-phase-1">
       <button class="btn btn-orange btn-full" onclick="faultUnlockDoor()">
         🔓 Déverrouiller la porte <span class="fault-side-name">—</span>
       </button>
     </div>
-    <!-- Phase 2: countdown while door is held open -->
+    <!-- Phase 2 : décompte pendant que la porte est maintenue ouverte -->
     <div id="fault-phase-2" style="display:none">
       <button class="btn btn-countdown btn-full" disabled>
         Gardez la porte ouverte… <span id="fault-countdown">10</span>s
       </button>
     </div>
-    <!-- Phase 3: ready to resolve -->
+    <!-- Phase 3 : prêt à résoudre -->
     <div id="fault-phase-3" style="display:none" class="fault-resolve-group">
       <button class="btn btn-resolve btn-full" onclick="resolveFault()">✓ Résoudre le défaut</button>
       <button class="btn btn-reopen btn-full" onclick="faultUnlockDoor()">
@@ -232,7 +270,7 @@
 
   <!-- ── Temperature ── -->
   <div class="card-warm">
-    <!-- Main: current room temp (BLE) + wanted room temp -->
+    <!-- Principale : température ambiante BLE + température souhaitée -->
     <div class="main-temps-row">
       <div class="main-temp-half">
         <div class="temp-big" id="ble-room-temp" style="opacity:.5">—°</div>
@@ -245,9 +283,10 @@
           <button class="adj-btn" onclick="adjustRoom(+1)">+</button>
         </div>
         <div class="temp-small-label">Température souhaitée</div>
+        <div class="sched-badge" id="sched-badge">📅 Programmé</div>
       </div>
     </div>
-    <!-- Secondary: stove internals (de-emphasised) -->
+    <!-- Secondaire : internes du poêle (discrets) -->
     <div class="stove-tech-row">
       <span>Poêle <span id="stove-temp">—°</span></span>
       <span style="opacity:.5">·</span>
@@ -260,7 +299,7 @@
     <div class="section-title">Cassettes de bûches</div>
     <div class="cart-grid">
 
-      <!-- Left -->
+      <!-- Gauche -->
       <div class="cart-col left">
         <div class="cart-title">Gauche</div>
         <div class="bars" id="bars-left"></div>
@@ -272,14 +311,14 @@
         </div>
       </div>
 
-      <!-- Time left -->
+      <!-- Temps restant -->
       <div class="time-col">
         <div class="time-label">Temps<br>restant</div>
         <div class="time-val" id="burn-time-val">—</div>
         <div class="time-unit" id="burn-time-unit">estimé</div>
       </div>
 
-      <!-- Right -->
+      <!-- Droite -->
       <div class="cart-col right">
         <div class="cart-title">Droite</div>
         <div class="bars" id="bars-right"></div>
@@ -292,8 +331,6 @@
       </div>
 
     </div>
-
-
   </div>
 
   <!-- ── Settings ── -->
@@ -304,7 +341,7 @@
     </div>
     <div class="settings-body" id="settings-body">
 
-      <!-- Maintenance alerts -->
+      <!-- Alertes de maintenance -->
       <div>
         <div class="settings-section">Alertes de maintenance</div>
         <div class="gap-col">
@@ -374,7 +411,7 @@
 
       <div class="divider"></div>
 
-      <!-- Maintenance reminders -->
+      <!-- Rappels de maintenance -->
       <div>
         <div class="settings-section">Rappels de maintenance</div>
         <div class="gap-col">
@@ -396,7 +433,7 @@
 
       <div class="divider"></div>
 
-      <!-- House parameters -->
+      <!-- Paramètres de la maison -->
       <div>
         <div class="settings-section">Paramètres de la maison</div>
         <div class="gap-col">
@@ -419,9 +456,49 @@
 
       <div class="divider"></div>
 
-      <!-- Disconnect -->
+      <!-- Redémarrage ESP -->
+      <div>
+        <button class="btn btn-red btn-full" onclick="resetESP()">↺ Redémarrer l'ESP32</button>
+        <p style="font-size:.72rem;color:#aaa;margin-top:8px;text-align:center">Attention : cela va redémarrer le contrôleur</p>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Déconnexion -->
       <button class="btn btn-gray btn-full" onclick="disconnect()">Déconnecter</button>
 
+    </div>
+  </div>
+
+  <!-- ── Options ── -->
+  <div class="card">
+    <div class="settings-toggle" onclick="toggleOptions()">
+      <span style="font-weight:700;color:#8B4513">Options</span>
+      <span class="arrow" id="options-arrow">▼</span>
+    </div>
+    <div class="settings-body" id="options-body">
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <span style="font-size:.85rem;font-weight:600;color:#5a3015">Activer la programmation</span>
+          <label class="tgl"><input type="checkbox" id="tog-sched-enable" onchange="setSchedEnabled(this.checked)"><span class="tgl-sl"></span></label>
+        </div>
+        <div class="settings-section">Programmation de température</div>
+        <div style="font-size:.78rem;color:#888;margin-bottom:10px">Faites glisser les points pour régler le confort par tranche de 2h (T1–T6)</div>
+        <svg id="schedule-svg" width="100%" viewBox="0 0 320 155" style="display:block;touch-action:none;overflow:visible"></svg>
+        <div id="sched-status" style="font-size:.78rem;color:#8B4513;margin-top:8px;text-align:center;min-height:1.2em"></div>
+        <button class="btn btn-brown btn-sm btn-full" style="margin-top:8px" onclick="saveSchedule()">Enregistrer et appliquer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Moniteur heap ── -->
+  <div id="heap-monitor" style="display:none">
+    <div class="heap-row">
+      <span class="heap-lbl">Heap</span>
+      <div class="heap-bar-wrap"><div class="heap-bar-fill" id="heap-bar"></div></div>
+      <span class="heap-val" id="heap-free-val">—</span>
+      <span class="heap-lbl">·  min</span>
+      <span class="heap-val" id="heap-min-val">—</span>
     </div>
   </div>
 
@@ -448,14 +525,16 @@
 // ============================================================
 // CONFIGURATION
 // ============================================================
-const SWAP_SIDES = false;   // true = swap left/right relative to firmware, false = no swap
+const SWAP_SIDES = false;   // true = inverser gauche/droite par rapport au firmware
 
 // ============================================================
 // STATE
 // ============================================================
-const LS        = 'woodmood_cfg';
-const LS_ALERTS = 'woodmood_alerts';
-const LS_HOUSE  = 'woodmood_house';
+const LS          = 'woodmood_cfg';
+const LS_ALERTS   = 'woodmood_alerts';
+const LS_HOUSE    = 'woodmood_house';
+const LS_SCHED    = 'woodmood_schedule';
+const LS_SCHED_EN = 'woodmood_sched_enabled';
 
 let cfg              = JSON.parse(localStorage.getItem(LS) || '{}');
 let client           = null;
@@ -463,30 +542,37 @@ let prefix           = '';
 let roomTemp         = 20;
 let lastHbTime       = 0;
 let hbTimer          = null;
+let offlineTimer     = null;
 let settingsOpen     = false;
+let optionsOpen      = false;
 let systemState      = 'startup';   // startup | auto | cooldown | fault
 let faultSide            = null;    // 'l' | 'r'
-let faultReady           = false;   // firmware signals fault can be resolved
-let faultCountdownActive = false;   // local 10-s countdown is running
+let faultReady           = false;   // le firmware signale que la panne peut être résolue
+let faultCountdownActive = false;   // décompte local de 10 s en cours
 let faultCountdownTimer  = null;
 let insulation       = null;
+let schedTemps       = Array(12).fill(20);
+let schedEnabled     = false;
+let schedDrag        = null;
+let schedSlotTimer   = null;
+let lastSchedSlot    = -1;
 
-// Derived state tracking
-let stoveTemp          = null;   // latest stove temp (°C) from MQTT
-let setpointVal        = null;   // latest setpoint (°C) from MQTT
-let sysActive          = false;  // system_active from status/full
-let faultActive        = false;  // fault active flag
-let inCooldown         = false;  // user manually entered cooldown (optimistic)
-let remoteStateReceived= false;  // true once firmware sends status/system_state
-let logL               = 0;      // current left log count
-let logR               = 0;      // current right log count
-let bleRoomTemp        = null;   // BLE room sensor temperature (°C), null = unavailable
-let bleRoomTempOk      = false;  // true when BLE sensor has a valid reading
-let lastKnownBleTemp   = null;   // last valid BLE reading — shown when sensor goes offline
+// Suivi d'état dérivé
+let stoveTemp          = null;   // dernière température du poêle (°C) via MQTT
+let setpointVal        = null;   // dernière consigne (°C) via MQTT
+let sysActive          = false;  // system_active depuis status/full
+let faultActive        = false;  // indicateur de panne active
+let inCooldown         = false;  // refroidissement entamé manuellement (optimiste)
+let remoteStateReceived= false;  // true dès que le firmware envoie status/system_state
+let logL               = 0;      // nombre de bûches à gauche
+let logR               = 0;      // nombre de bûches à droite
+let bleRoomTemp        = null;   // température BLE (°C), null = indisponible
+let bleRoomTempOk      = false;  // true quand le capteur BLE a une lecture valide
+let lastKnownBleTemp   = null;   // dernière lecture BLE valide — affichée si capteur hors ligne
 
-// ── Pending-command lock — prevents MQTT rubber-banding toggles ──
+// ── Verrou commande en attente — évite le rebond MQTT ──
 const pendingCmds = {};
-const PENDING_TTL = 4000; // ms — ignore MQTT updates for this long after a command
+const PENDING_TTL = 4000; // ms — ignore les mises à jour MQTT pendant ce délai après une commande
 function lockField(f) { pendingCmds[f] = Date.now() + PENDING_TTL; }
 function isLocked(f)  { return !!(pendingCmds[f] && Date.now() < pendingCmds[f]); }
 
@@ -495,10 +581,10 @@ function isLocked(f)  { return !!(pendingCmds[f] && Date.now() < pendingCmds[f])
 // ============================================================
 window.addEventListener('load', () => {
   loadSettings();
-  // Restore last known wanted temp from localStorage so the display is never
-  // wrong on a fresh page load (before the first MQTT status arrives).
+  initSchedule();
+  // Restaure la dernière température souhaitée depuis localStorage
   const savedRoom = parseInt(localStorage.getItem('woodmood_room_temp'));
-  if (savedRoom >= 18 && savedRoom <= 26) roomTemp = savedRoom;
+  if (savedRoom >= 18 && savedRoom <= 23) roomTemp = savedRoom;
   if (cfg.broker && cfg.user && cfg.pass && cfg.serial) {
     fillForm();
     document.getElementById('conn-card').style.display = 'none';
@@ -506,11 +592,12 @@ window.addEventListener('load', () => {
   }
   renderBars('left',  0);
   renderBars('right', 0);
-  document.getElementById('room-val').textContent = 'T' + (roomTemp - 17);
+  document.getElementById('room-val').textContent = tempToLabel(roomTemp);
 });
 
 function fillForm() {
   document.getElementById('cfg-broker').value = cfg.broker || '';
+  document.getElementById('cfg-port').value   = cfg.port   || '8884';
   document.getElementById('cfg-user').value   = cfg.user   || '';
   document.getElementById('cfg-pass').value   = cfg.pass   || '';
   document.getElementById('cfg-serial').value = cfg.serial || '';
@@ -527,6 +614,7 @@ function toggleConnPanel() {
 // ============================================================
 function saveAndConnect() {
   cfg.broker = document.getElementById('cfg-broker').value.trim();
+  cfg.port   = parseInt(document.getElementById('cfg-port').value.trim()) || 8884;
   cfg.user   = document.getElementById('cfg-user').value.trim();
   cfg.pass   = document.getElementById('cfg-pass').value.trim();
   cfg.serial = document.getElementById('cfg-serial').value.trim();
@@ -542,7 +630,7 @@ function connect() {
 
   if (client) { try { client.end(true); } catch(e){} }
 
-  client = mqtt.connect(`wss://${cfg.broker}:8884/mqtt`, {
+  client = mqtt.connect(`wss://${cfg.broker}:${cfg.port || 8884}/mqtt`, {
     username:        cfg.user,
     password:        cfg.pass,
     clientId:        'woodmood-web-' + Math.random().toString(16).substr(2,8),
@@ -553,9 +641,27 @@ function connect() {
   });
 
   client.on('connect', () => {
-    setDotState('connected');   // orange — waiting for heartbeat
+    setDotState('connected');   // orange — en attente du heartbeat
+    clearTimeout(offlineTimer);
+    offlineTimer = null;
     document.getElementById('offline-overlay').classList.remove('show');
     client.subscribe(prefix + '/status/#');
+    client.subscribe(prefix + '/schedule');
+    if (schedTemps.some(t => t !== 20))
+      client.publish(prefix + '/schedule', JSON.stringify(schedTemps), { qos:1, retain:true });
+    // Appliquer le créneau de programmation actuel à la (re)connexion
+    lastSchedSlot = Math.floor(new Date().getHours() / 2);
+    applyScheduleSlot();
+    // Surveiller les changements de créneau (toutes les minutes)
+    if (!schedSlotTimer) {
+      schedSlotTimer = setInterval(function() {
+        const slot = Math.floor(new Date().getHours() / 2);
+        if (slot !== lastSchedSlot) {
+          lastSchedSlot = slot;
+          applyScheduleSlot();
+        }
+      }, 60000);
+    }
   });
 
   client.on('message',   onMessage);
@@ -587,7 +693,11 @@ function setDotState(s) {
 }
 
 function showOffline() {
-  if (lastHbTime > 0) document.getElementById('offline-overlay').classList.add('show');
+  if (lastHbTime === 0 || offlineTimer) return;
+  offlineTimer = setTimeout(() => {
+    offlineTimer = null;
+    document.getElementById('offline-overlay').classList.add('show');
+  }, 5000);
 }
 
 // ============================================================
@@ -596,6 +706,18 @@ function showOffline() {
 function onMessage(topic, payloadBuf) {
   const payload = payloadBuf.toString();
   const sub     = topic.replace(prefix + '/', '');
+
+  if (sub === 'schedule') {
+    try {
+      const arr = JSON.parse(payload);
+      if (Array.isArray(arr) && arr.length === 12) {
+        schedTemps = arr.map(t => Math.min(23, Math.max(18, Math.round(t))));
+        localStorage.setItem(LS_SCHED, JSON.stringify(schedTemps));
+        if (optionsOpen) renderScheduleSVG();
+      }
+    } catch(e) {}
+    return;
+  }
 
   if (sub === 'status/heartbeat') {
     publish('cmd/heartbeat_ack', '1');
@@ -613,7 +735,7 @@ function onMessage(topic, payloadBuf) {
 
   if (sub === 'status/temperature') {
     stoveTemp = parseFloat(payload);
-    document.getElementById('stove-temp').textContent = Math.round(parseFloat(payload)) + '°';
+    document.getElementById('stove-temp').textContent = payload + '°';
     updateSystemState(); return;
   }
   if (sub === 'status/room_temp') {
@@ -643,6 +765,13 @@ function onMessage(topic, payloadBuf) {
   if (sub === 'status/maint_ramon')  { document.getElementById('ramon-days').textContent = payload + ' jours depuis le dernier'; return; }
   if (sub === 'status/maint_seal')   { document.getElementById('seal-days').textContent  = payload + ' jours'; return; }
 
+  if (sub === 'status/heap') {
+    try {
+      const h = JSON.parse(payload);
+      if (h.free !== undefined) applyHeap(h.free, h.min_free, h.max_alloc);
+    } catch(e) {}
+    return;
+  }
 }
 
 // ============================================================
@@ -651,11 +780,11 @@ function onMessage(topic, payloadBuf) {
 function applyFull(d) {
   if (d.stove_temp !== undefined) {
     stoveTemp = parseFloat(d.stove_temp);
-    document.getElementById('stove-temp').textContent = Math.round(parseFloat(d.stove_temp)) + '°';
+    document.getElementById('stove-temp').textContent = d.stove_temp + '°';
   }
   if (d.setpoint !== undefined) {
     setpointVal = parseFloat(d.setpoint);
-    document.getElementById('setpoint-val').textContent = Math.round(parseFloat(d.setpoint)) + '°';
+    document.getElementById('setpoint-val').textContent = d.setpoint + '°';
   }
   if (d.room_temp !== undefined) {
     const val = parseFloat(d.room_temp);
@@ -673,13 +802,13 @@ function applyFull(d) {
     renderBars('right', logR);
     document.getElementById('count-right').textContent = logR + ' bûches';
   }
-  // Sync wanted room temp from firmware echo — keeps all clients in sync.
-  // Skipped for 4 s after the local user taps +/- to avoid rubber-banding.
+  // Synchronise la température souhaitée depuis l'écho du firmware — garde tous les clients en phase.
+  // Ignoré pendant 4 s après qu'un utilisateur appuie sur +/- pour éviter le rebond.
   if (d.room_setpoint !== undefined && !isLocked('room_temp')) {
     const r = parseInt(d.room_setpoint);
-    if (r >= 18 && r <= 26 && r !== roomTemp) {
+    if (r >= 18 && r <= 23 && r !== roomTemp) {
       roomTemp = r;
-      document.getElementById('room-val').textContent = 'T' + (roomTemp - 17);
+      document.getElementById('room-val').textContent = tempToLabel(roomTemp);
       localStorage.setItem('woodmood_room_temp', roomTemp);
     }
   }
@@ -697,16 +826,29 @@ function applyFull(d) {
       + d.local_ip + '/update</a>'
       + ' <span style="opacity:.55">pwd: &lt;MQTT password&gt;</span>';
   }
+  if (d.heap_free !== undefined) applyHeap(d.heap_free, d.heap_min || 0, d.heap_max_alloc || 0);
   if (d.maint_joint !== undefined) document.getElementById('joint-days').textContent = d.maint_joint + ' jours';
   if (d.maint_ramon !== undefined) document.getElementById('ramon-days').textContent = d.maint_ramon + ' jours depuis le dernier';
   if (d.maint_seal  !== undefined) document.getElementById('seal-days').textContent  = d.maint_seal  + ' jours';
 
+  applyTechState(d);
   calcBurnTime();
   updateSystemState();
 }
 
 // ============================================================
-// BLE ROOM TEMPERATURE
+// SYNCHRONISATION MODE SILENCIEUX
+// ============================================================
+function applyTechState(d) {
+  if (d.silence_mode !== undefined && !isLocked('silence_mode')) {
+    const on = !!d.silence_mode;
+    document.getElementById('silence-toggle').checked = on;
+    document.getElementById('silence-icon').classList.toggle('active', on);
+  }
+}
+
+// ============================================================
+// TEMPÉRATURE AMBIANTE BLE
 // ============================================================
 function updateBleRoomTemp() {
   const el  = document.getElementById('ble-room-temp');
@@ -714,13 +856,13 @@ function updateBleRoomTemp() {
   if (!el) return;
   if (bleRoomTempOk && bleRoomTemp !== null) {
     lastKnownBleTemp = bleRoomTemp;
-    el.textContent      = Math.round(bleRoomTemp) + '°';
+    el.textContent      = bleRoomTemp.toFixed(1) + '°';
     el.style.fontStyle  = 'normal';
     el.style.opacity    = '1';
     lbl.textContent     = 'Température actuelle';
     lbl.style.fontStyle = 'normal';
   } else if (lastKnownBleTemp !== null) {
-    el.textContent      = Math.round(lastKnownBleTemp) + '°';
+    el.textContent      = lastKnownBleTemp.toFixed(1) + '°';
     el.style.fontStyle  = 'italic';
     el.style.opacity    = '0.65';
     lbl.textContent     = 'Dernière mesure';
@@ -735,19 +877,19 @@ function updateBleRoomTemp() {
 }
 
 // ============================================================
-// SYSTEM STATE
+// ÉTAT DU SYSTÈME
 // ============================================================
 
-// Derive state from live data — used as fallback when firmware hasn't sent
-// status/system_state yet (e.g. older firmware or first connection).
+// Dérive l'état depuis les données en direct — utilisé en fallback si le firmware
+// n'a pas encore envoyé status/system_state.
 function updateSystemState() {
-  // Once the firmware is sending its own state, trust it — don't override.
+  // Dès que le firmware envoie son propre état, on lui fait confiance.
   if (remoteStateReceived) return;
 
   if (faultActive)  { applySystemState('fault');    return; }
   if (inCooldown)   { applySystemState('cooldown'); return; }
 
-  // Startup until stove reaches 85 % of setpoint (mirrors MODE_STARTUP on ESP32)
+  // Démarrage jusqu'à ce que le poêle atteigne 85 % de la consigne
   if (stoveTemp !== null && setpointVal !== null && setpointVal > 0) {
     if (stoveTemp >= setpointVal * 0.85 && sysActive) {
       applySystemState('auto');
@@ -759,10 +901,10 @@ function updateSystemState() {
   }
 }
 
-// Render system state button — accepts both firmware strings and local strings.
+// Affiche l'état du système — accepte les chaînes du firmware et les chaînes locales.
 function applySystemState(state) {
   systemState = state;
-  // Clean up cooldown flag when system reaches standby naturally
+  // Réinitialise le flag refroidissement quand le système revient en veille/démarrage/auto
   if (state === 'standby' || state === 'startup' || state === 'auto') {
     if (state !== 'cooldown') inCooldown = false;
   }
@@ -774,10 +916,10 @@ function applySystemState(state) {
     standby:       'Éteint — Appuyer pour démarrer',
     fault:         'Défaut détecté',
     shutting_down: 'Arrêt en cours',
-    active:        'Automatique',  // legacy fallback
+    active:        'Automatique',  // fallback legacy
   };
   btn.textContent = labels[state] || state;
-  // Map firmware state names to CSS classes
+  // Correspondance entre les états du firmware et les classes CSS
   const cssClass = state === 'active' ? 'auto'
                  : state === 'shutting_down' ? 'cooldown'
                  : (state || 'startup');
@@ -785,12 +927,8 @@ function applySystemState(state) {
 }
 
 function sysButtonClick() {
-  // Use CSS class as the authoritative source for the button's current state.
-  // This is a fallback safety net: if the `systemState` JS variable is stale,
-  // null, or mismatched (e.g. a duplicate MQTT message arrived out-of-order),
-  // we still handle the click correctly based on what the button visually shows.
-  const btn        = document.getElementById('sys-btn');
-  const btnState   = systemState || [...btn.classList].find(c => c !== 'sys-btn') || 'startup';
+  const btn      = document.getElementById('sys-btn');
+  const btnState = systemState || [...btn.classList].find(c => c !== 'sys-btn') || 'startup';
 
   if (btnState === 'startup') {
     const hot = stoveTemp !== null && stoveTemp > 150;
@@ -815,9 +953,6 @@ function sysButtonClick() {
     publish('cmd/cooldown', '0');
     applySystemState('auto');
   } else if (btnState === 'standby') {
-    // No confirm needed — button already reads "Off — Press to Start".
-    // The user explicitly tapped it; an extra dialog just adds friction and
-    // widens the timing window where a QoS-1 duplicate cooldown can slip through.
     lockField('system_state');
     publish('cmd/start', '1');
     applySystemState('startup');
@@ -825,22 +960,22 @@ function sysButtonClick() {
 }
 
 // ============================================================
-// FAULT
+// DÉFAUT
 // ============================================================
 function setFault(active, side, ready) {
   const wasActive = faultActive;
   faultActive = !!(active || active === '1' || active === true);
   if (side !== undefined && side !== null) {
-    // Firmware sends "Right"/"Left" (full words) — normalize to 'r'/'l' for topic building
+    // Le firmware envoie "Right"/"Left" (mots entiers) — normaliser en 'r'/'l'
     const s = String(side).toLowerCase();
     faultSide = (s === 'right' || s === 'r') ? 'r' : 'l';
   }
-  if (ready) faultReady = true;  // firmware can only SET faultReady, never clear it mid-fault
+  if (ready) faultReady = true;  // le firmware peut seulement ACTIVER faultReady, jamais le désactiver en cours de panne
   const banner = document.getElementById('fault-banner');
   if (faultActive) {
     banner.classList.add('show');
     if (!wasActive) {
-      // Fresh fault — reset to phase 1
+      // Nouvelle panne — réinitialiser à la phase 1
       clearFaultCountdown();
       faultReady = false;
     }
@@ -857,7 +992,7 @@ function setFault(active, side, ready) {
 
 function renderFaultPhase() {
   const sideLabel = (faultSide === 'r') ? 'Droite' : 'Gauche';
-  // Update side badge and all side-name spans
+  // Mise à jour du badge de côté et de tous les spans .fault-side-name
   const badge = document.getElementById('fault-side-badge');
   if (badge) badge.textContent = sideLabel + ' — Côté';
   document.querySelectorAll('.fault-side-name').forEach(function(el) {
@@ -867,18 +1002,18 @@ function renderFaultPhase() {
   const p2 = document.getElementById('fault-phase-2');
   const p3 = document.getElementById('fault-phase-3');
   if (faultReady) {
-    // Phase 3: firmware confirmed ready to resolve
+    // Phase 3 : firmware confirmé prêt à résoudre
     clearFaultCountdown();
     p1.style.display = 'none';
     p2.style.display = 'none';
     p3.style.display = '';
   } else if (faultCountdownActive) {
-    // Phase 2: local countdown running
+    // Phase 2 : décompte local en cours
     p1.style.display = 'none';
     p2.style.display = '';
     p3.style.display = 'none';
   } else {
-    // Phase 1: waiting for user to unlock door
+    // Phase 1 : en attente que l'utilisateur déverrouille la porte
     p1.style.display = '';
     p2.style.display = 'none';
     p3.style.display = 'none';
@@ -888,9 +1023,8 @@ function renderFaultPhase() {
 function faultUnlockDoor() {
   const side = faultSide || 'l';
   publish('cmd/door_' + side, '1');
-  // firmware 'r' = physical left, firmware 'l' = physical right
-  showToast('Déverrouillage porte ' + (side === 'r' ? 'gauche' : 'droite') + '…');
-  // Start 10-s local countdown (moves to phase 3 when done)
+  showToast('Déverrouillage porte ' + (side === 'r' ? 'droite' : 'gauche') + '…');
+  // Démarrer le décompte local de 10 s (passe à la phase 3 quand terminé)
   clearFaultCountdown();
   faultCountdownActive = true;
   let secs = 10;
@@ -924,7 +1058,7 @@ function setFaultMsg(msg) {
 }
 
 // ============================================================
-// LOG CARTRIDGE BARS
+// BARRES DE CASSETTES
 // ============================================================
 function renderBars(side, count) {
   const MAX = 6;
@@ -938,7 +1072,7 @@ function renderBars(side, count) {
 }
 
 // ============================================================
-// COMMANDS
+// COMMANDES
 // ============================================================
 function publish(subtopic, payload) {
   if (!client || !client.connected) { alert('Non connecté au courtier'); return; }
@@ -948,10 +1082,10 @@ function publish(subtopic, payload) {
 function mapSide(s) { return SWAP_SIDES ? (s === 'l' ? 'r' : 'l') : s; }
 
 function adjustRoom(delta) {
-  roomTemp = Math.min(26, Math.max(18, (isNaN(roomTemp) ? 20 : roomTemp) + delta));
-  document.getElementById('room-val').textContent = 'T' + (roomTemp - 17);
+  roomTemp = Math.min(23, Math.max(18, (isNaN(roomTemp) ? 20 : roomTemp) + delta));
+  document.getElementById('room-val').textContent = tempToLabel(roomTemp);
   localStorage.setItem('woodmood_room_temp', roomTemp);
-  lockField('room_temp');   // prevent MQTT echo from overwriting immediately after a tap
+  lockField('room_temp');   // empêche l'écho MQTT d'écraser immédiatement après une pression
   publish('cmd/room_temp', roomTemp);
 }
 
@@ -962,19 +1096,19 @@ function unlockDoor(side) {
 
 function updateLogCount(side) {
   const id  = side === 'l' ? 'count-left' : 'count-right';
-  const cur = document.getElementById(id).textContent.replace(' logs','').trim();
-  const val = prompt('Nombre de bûches pour la cartouche ' + (side==='l'?'gauche':'droite') + ' (0–6) :', cur === '—' ? '0' : cur);
+  const cur = document.getElementById(id).textContent.replace(' bûches','').trim();
+  const val = prompt('Nombre de bûches pour la cassette ' + (side==='l'?'gauche':'droite') + ' (0–6) :', cur === '—' ? '0' : cur);
   if (val === null) return;
   const n = Math.min(6, Math.max(0, parseInt(val) || 0));
   if (side === 'l') logL = n; else logR = n;
   publish('cmd/log_level_' + mapSide(side), n);
   renderBars(side === 'l' ? 'left' : 'right', n);
-  document.getElementById(id).textContent = n ;
+  document.getElementById(id).textContent = n + ' bûches';
   calcBurnTime();
 }
 
 // ============================================================
-// BURN TIME — 40 min per log
+// TEMPS DE COMBUSTION — 40 min par bûche
 // ============================================================
 function calcBurnTime() {
   const total    = logL + logR;
@@ -986,6 +1120,25 @@ function calcBurnTime() {
   const m = totalMins % 60;
   el.textContent   = h > 0 ? (m > 0 ? h + 'h ' + m + 'm' : h + 'h') : m + 'm';
   unitEl.textContent = 'estimé';
+}
+
+// ============================================================
+// MODE SILENCIEUX
+// ============================================================
+function setSilenceMode(on) {
+  lockField('silence_mode');
+  publish('cmd/silence', on ? '1' : '0');
+  document.getElementById('silence-icon').classList.toggle('active', on);
+  showToast(on ? 'Mode silencieux activé — insertions en pause' : 'Mode silencieux désactivé');
+}
+
+// ============================================================
+// REDÉMARRAGE ESP
+// ============================================================
+function resetESP() {
+  if (!confirm('Redémarrer le contrôleur ESP32 ?')) return;
+  publish('cmd/reset', '1');
+  showToast('Redémarrage ESP32…');
 }
 
 // ============================================================
@@ -1001,7 +1154,29 @@ function showToast(msg) {
 }
 
 // ============================================================
-// SETTINGS — ALERTS
+// MONITEUR HEAP
+// ============================================================
+function applyHeap(freeB, minFreeB, maxAllocB) {
+  const freeKB    = (freeB    / 1024).toFixed(1);
+  const minFreeKB = (minFreeB / 1024).toFixed(1);
+
+  document.getElementById('heap-free-val').textContent = freeKB    + ' KB';
+  document.getElementById('heap-min-val').textContent  = minFreeKB + ' KB';
+
+  // Barre : SRAM interne ESP32-S3 utilisable ~330 KB (borne supérieure approximative)
+  const pct = Math.min(100, Math.round(freeB / 337920 * 100));
+  const bar = document.getElementById('heap-bar');
+  bar.style.width = pct + '%';
+
+  // Couleur : rouge < 20 Ko | orange < 50 Ko | vert ≥ 50 Ko
+  const colour = minFreeB < 20000 ? '#e74c3c' : minFreeB < 50000 ? '#f39c12' : '#2ecc71';
+  bar.style.background = colour;
+  document.getElementById('heap-min-val').style.color =
+    minFreeB < 20000 ? '#e74c3c' : minFreeB < 50000 ? '#f39c12' : 'rgba(255,255,255,.75)';
+}
+
+// ============================================================
+// PARAMÈTRES — ALERTES
 // ============================================================
 function onAlertOpChange(i) {
   const op = parseInt(document.getElementById('alert-op-' + i).value);
@@ -1045,7 +1220,7 @@ function saveAlerts() {
 }
 
 // ============================================================
-// SETTINGS — MAINTENANCE
+// PARAMÈTRES — MAINTENANCE
 // ============================================================
 function replaceJoint() {
   const temp = parseFloat(document.getElementById('stove-temp').textContent);
@@ -1060,7 +1235,7 @@ function replaceJoint() {
 }
 
 // ============================================================
-// SETTINGS — HOUSE PARAMS
+// PARAMÈTRES — MAISON
 // ============================================================
 function setInsulation(val, save = true) {
   insulation = val;
@@ -1087,12 +1262,260 @@ function saveHouseParams() {
 }
 
 // ============================================================
-// UI TOGGLES
+// BASCULES UI
 // ============================================================
 function toggleSettings() {
   settingsOpen = !settingsOpen;
   document.getElementById('settings-body').classList.toggle('open', settingsOpen);
   document.getElementById('settings-arrow').classList.toggle('open', settingsOpen);
+}
+
+// ============================================================
+// OPTIONS — PROGRAMMATION DE TEMPÉRATURE
+// ============================================================
+const SCHED_SLOTS = 12, SCHED_TMIN = 18, SCHED_TMAX = 23;
+const SPL = 28, SPR = 312, SPT = 10, SPB = 133;
+const SPW = SPR - SPL, SPH = SPB - SPT;
+
+function spX(i)     { return SPL + i * SPW / (SCHED_SLOTS - 1); }
+function spY(t)     { return SPT + (SCHED_TMAX - t) / (SCHED_TMAX - SCHED_TMIN) * SPH; }
+function spYtoT(py) { return Math.round(Math.min(SCHED_TMAX, Math.max(SCHED_TMIN, SCHED_TMAX - (py - SPT) / SPH * (SCHED_TMAX - SCHED_TMIN)))); }
+function tempToLabel(t) { return 'T' + (t - SCHED_TMIN + 1); }  // 18→T1, 19→T2 … 23→T6
+
+function initSchedule() {
+  const saved = JSON.parse(localStorage.getItem(LS_SCHED) || 'null');
+  if (Array.isArray(saved) && saved.length === SCHED_SLOTS)
+    schedTemps = saved.map(t => Math.min(SCHED_TMAX, Math.max(SCHED_TMIN, Math.round(t))));
+  schedEnabled = localStorage.getItem(LS_SCHED_EN) === '1';
+  document.getElementById('sched-badge').classList.toggle('active', schedEnabled);
+}
+
+function toggleOptions() {
+  optionsOpen = !optionsOpen;
+  document.getElementById('options-body').classList.toggle('open', optionsOpen);
+  document.getElementById('options-arrow').classList.toggle('open', optionsOpen);
+  if (optionsOpen) {
+    document.getElementById('tog-sched-enable').checked = schedEnabled;
+    renderScheduleSVG();
+    updateSchedStatus();
+  }
+}
+
+function setSchedEnabled(on) {
+  schedEnabled = on;
+  localStorage.setItem(LS_SCHED_EN, on ? '1' : '0');
+  document.getElementById('sched-badge').classList.toggle('active', on);
+  updateSchedStatus();
+  if (on) applyScheduleSlot();
+}
+
+function applyScheduleSlot() {
+  if (!schedEnabled || !client || !client.connected) return;
+  const slot = Math.floor(new Date().getHours() / 2);
+  const t = schedTemps[slot];
+  if (t < SCHED_TMIN || t > SCHED_TMAX) return;
+  roomTemp = t;
+  document.getElementById('room-val').textContent = tempToLabel(roomTemp);
+  localStorage.setItem('woodmood_room_temp', roomTemp);
+  lockField('room_temp');
+  publish('cmd/room_temp', roomTemp);
+}
+
+function updateSchedStatus() {
+  const el = document.getElementById('sched-status');
+  if (!el) return;
+  if (!schedEnabled) { el.textContent = ''; return; }
+  const slot = Math.floor(new Date().getHours() / 2);
+  const t = schedTemps[slot];
+  const nextSlot = (slot + 1) % SCHED_SLOTS;
+  el.textContent = 'Maintenant (' + (slot*2) + 'h–' + (slot*2+2) + 'h) : ' + tempToLabel(t) + '  →  Suivant : ' + tempToLabel(schedTemps[nextSlot]);
+}
+
+function smoothPath(pts) {
+  if (pts.length < 2) return '';
+  let d = 'M ' + pts[0].x.toFixed(1) + ' ' + pts[0].y.toFixed(1);
+  for (let i = 1; i < pts.length; i++) {
+    const p0 = pts[Math.max(0, i - 2)];
+    const p1 = pts[i - 1];
+    const p2 = pts[i];
+    const p3 = pts[Math.min(pts.length - 1, i + 1)];
+    const cp1x = (p1.x + (p2.x - p0.x) / 6).toFixed(1);
+    const cp1y = (p1.y + (p2.y - p0.y) / 6).toFixed(1);
+    const cp2x = (p2.x - (p3.x - p1.x) / 6).toFixed(1);
+    const cp2y = (p2.y - (p3.y - p1.y) / 6).toFixed(1);
+    d += ' C ' + cp1x + ' ' + cp1y + ' ' + cp2x + ' ' + cp2y + ' ' + p2.x.toFixed(1) + ' ' + p2.y.toFixed(1);
+  }
+  return d;
+}
+
+function renderScheduleSVG() {
+  const svg = document.getElementById('schedule-svg');
+  if (!svg) return;
+  const ns = 'http://www.w3.org/2000/svg';
+  svg.innerHTML = '';
+
+  // Dégradé
+  const defs = document.createElementNS(ns, 'defs');
+  const grad = document.createElementNS(ns, 'linearGradient');
+  grad.setAttribute('id', 'sched-grad'); grad.setAttribute('x1','0'); grad.setAttribute('y1','0'); grad.setAttribute('x2','0'); grad.setAttribute('y2','1');
+  const s1 = document.createElementNS(ns, 'stop'); s1.setAttribute('offset','0%');   s1.setAttribute('stop-color','#CD853F'); s1.setAttribute('stop-opacity','0.28');
+  const s2 = document.createElementNS(ns, 'stop'); s2.setAttribute('offset','100%'); s2.setAttribute('stop-color','#CD853F'); s2.setAttribute('stop-opacity','0.02');
+  grad.appendChild(s1); grad.appendChild(s2); defs.appendChild(grad); svg.appendChild(defs);
+
+  // Lignes de grille horizontales + étiquettes axe Y
+  for (let t = SCHED_TMIN; t <= SCHED_TMAX; t++) {
+    const y = spY(t);
+    const gl = document.createElementNS(ns, 'line');
+    gl.setAttribute('x1', SPL); gl.setAttribute('x2', SPR);
+    gl.setAttribute('y1', y);  gl.setAttribute('y2', y);
+    gl.setAttribute('stroke', t === 20 ? '#e0c8b0' : '#f5ede4');
+    gl.setAttribute('stroke-width', t === 20 ? '1.2' : '0.7');
+    svg.appendChild(gl);
+    const lbl = document.createElementNS(ns, 'text');
+    lbl.setAttribute('x', SPL - 4); lbl.setAttribute('y', y + 3.5);
+    lbl.setAttribute('text-anchor', 'end'); lbl.setAttribute('font-size', '9');
+    lbl.setAttribute('fill', '#bba090'); lbl.textContent = tempToLabel(t);
+    svg.appendChild(lbl);
+  }
+
+  // Mise en surbrillance du créneau de 2h en cours
+  const curSlot = Math.floor(new Date().getHours() / 2);
+  const slotW   = SPW / (SCHED_SLOTS - 1);
+  const hlRect  = document.createElementNS(ns, 'rect');
+  hlRect.setAttribute('x', spX(curSlot) - slotW / 2); hlRect.setAttribute('y', SPT);
+  hlRect.setAttribute('width', slotW); hlRect.setAttribute('height', SPH);
+  hlRect.setAttribute('fill', 'rgba(139,69,19,0.07)'); hlRect.setAttribute('rx', '3');
+  svg.appendChild(hlRect);
+
+  const pts = schedTemps.map((t, i) => ({ x: spX(i), y: spY(t) }));
+
+  // Remplissage sous la courbe
+  const fill = document.createElementNS(ns, 'path');
+  fill.setAttribute('id', 'sched-fill');
+  fill.setAttribute('d', smoothPath(pts) + ' L ' + pts[pts.length-1].x + ' ' + SPB + ' L ' + pts[0].x + ' ' + SPB + ' Z');
+  fill.setAttribute('fill', 'url(#sched-grad)'); fill.setAttribute('stroke', 'none');
+  svg.appendChild(fill);
+
+  // Courbe
+  const curve = document.createElementNS(ns, 'path');
+  curve.setAttribute('id', 'sched-curve');
+  curve.setAttribute('d', smoothPath(pts));
+  curve.setAttribute('fill', 'none'); curve.setAttribute('stroke', '#8B4513');
+  curve.setAttribute('stroke-width', '2'); curve.setAttribute('stroke-linejoin', 'round');
+  svg.appendChild(curve);
+
+  // Étiquettes axe X
+  for (let i = 0; i < SCHED_SLOTS; i++) {
+    const lbl = document.createElementNS(ns, 'text');
+    lbl.setAttribute('x', spX(i)); lbl.setAttribute('y', SPB + 15);
+    lbl.setAttribute('text-anchor', 'middle'); lbl.setAttribute('font-size', '8.5');
+    lbl.setAttribute('fill', i === curSlot ? '#8B4513' : '#bba090');
+    lbl.setAttribute('font-weight', i === curSlot ? '700' : 'normal');
+    lbl.textContent = (i * 2) + 'h';
+    svg.appendChild(lbl);
+  }
+
+  // Groupes de points déplaçables
+  pts.forEach(function(p, i) {
+    const g = document.createElementNS(ns, 'g');
+    g.setAttribute('class', 'sched-pt'); g.setAttribute('data-idx', i);
+
+    const hit = document.createElementNS(ns, 'circle');
+    hit.setAttribute('cx', p.x); hit.setAttribute('cy', p.y);
+    hit.setAttribute('r', '14'); hit.setAttribute('fill', 'transparent');
+    g.appendChild(hit);
+
+    const dot = document.createElementNS(ns, 'circle');
+    dot.setAttribute('class', 'sched-dot-' + i);
+    dot.setAttribute('cx', p.x); dot.setAttribute('cy', p.y);
+    dot.setAttribute('r', '5'); dot.setAttribute('fill', '#8B4513');
+    dot.setAttribute('stroke', '#fff'); dot.setAttribute('stroke-width', '2');
+    g.appendChild(dot);
+
+    const tlbl = document.createElementNS(ns, 'text');
+    tlbl.setAttribute('class', 'sched-lbl-' + i);
+    tlbl.setAttribute('x', p.x);
+    tlbl.setAttribute('y', p.y < 22 ? p.y + 18 : p.y - 9);
+    tlbl.setAttribute('text-anchor', 'middle'); tlbl.setAttribute('font-size', '9');
+    tlbl.setAttribute('font-weight', '700'); tlbl.setAttribute('fill', '#8B4513');
+    tlbl.textContent = tempToLabel(schedTemps[i]);
+    g.appendChild(tlbl);
+
+    svg.appendChild(g);
+  });
+
+  svg.onmousedown  = schedOnDown;
+  svg.ontouchstart = schedOnDown;
+}
+
+function updateScheduleSVG() {
+  const svg = document.getElementById('schedule-svg');
+  if (!svg) return;
+  const pts = schedTemps.map(function(t, i) { return { x: spX(i), y: spY(t) }; });
+
+  const curve = svg.querySelector('#sched-curve');
+  if (curve) curve.setAttribute('d', smoothPath(pts));
+
+  const fill = svg.querySelector('#sched-fill');
+  if (fill) fill.setAttribute('d', smoothPath(pts) + ' L ' + pts[pts.length-1].x + ' ' + SPB + ' L ' + pts[0].x + ' ' + SPB + ' Z');
+
+  pts.forEach(function(p, i) {
+    const g = svg.querySelector('.sched-pt[data-idx="' + i + '"]');
+    if (!g) return;
+    g.querySelectorAll('circle').forEach(function(c) { c.setAttribute('cy', p.y); });
+    const lbl = g.querySelector('.sched-lbl-' + i);
+    if (lbl) {
+      lbl.setAttribute('y', p.y < 22 ? p.y + 18 : p.y - 9);
+      lbl.textContent = tempToLabel(schedTemps[i]);
+    }
+  });
+}
+
+function svgClientToPoint(svg, clientX, clientY) {
+  const pt = svg.createSVGPoint();
+  pt.x = clientX; pt.y = clientY;
+  return pt.matrixTransform(svg.getScreenCTM().inverse());
+}
+
+function schedOnDown(e) {
+  const g = e.target.closest('.sched-pt');
+  if (!g) return;
+  e.preventDefault();
+  const svg = document.getElementById('schedule-svg');
+  schedDrag = { idx: parseInt(g.getAttribute('data-idx')), svg: svg };
+  window.addEventListener('mousemove', schedOnMove);
+  window.addEventListener('mouseup',   schedOnUp);
+  window.addEventListener('touchmove', schedOnMove, { passive: false });
+  window.addEventListener('touchend',  schedOnUp);
+}
+
+function schedOnMove(e) {
+  if (!schedDrag) return;
+  e.preventDefault();
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  const sp      = svgClientToPoint(schedDrag.svg, 0, clientY);
+  const newTemp = spYtoT(sp.y);
+  if (schedTemps[schedDrag.idx] === newTemp) return;
+  schedTemps[schedDrag.idx] = newTemp;
+  updateScheduleSVG();
+  updateSchedStatus();
+}
+
+function schedOnUp() {
+  schedDrag = null;
+  window.removeEventListener('mousemove', schedOnMove);
+  window.removeEventListener('mouseup',   schedOnUp);
+  window.removeEventListener('touchmove', schedOnMove);
+  window.removeEventListener('touchend',  schedOnUp);
+}
+
+function saveSchedule() {
+  localStorage.setItem(LS_SCHED, JSON.stringify(schedTemps));
+  updateSchedStatus();
+  if (!client || !client.connected) { showToast('Enregistré localement (non connecté)'); return; }
+  client.publish(prefix + '/schedule', JSON.stringify(schedTemps), { qos: 1, retain: true });
+  applyScheduleSlot();
+  showToast(schedEnabled ? 'Programmation enregistrée et appliquée' : 'Programmation enregistrée (activez pour l\'appliquer)');
 }
 </script>
 </body>
