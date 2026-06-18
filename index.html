@@ -439,6 +439,20 @@
 
       <div class="divider"></div>
 
+      <!-- Notifications push -->
+      <div>
+        <div class="settings-section">Notifications push</div>
+        <div class="gap-col">
+          <div style="font-size:.82rem;opacity:.75;margin-bottom:4px">Recevez une notification même quand l'app est fermée — défaut, cassette vide, cassette basse.</div>
+          <button class="btn btn-brown btn-sm btn-full" id="push-enable-btn" onclick="enablePushNotifications()">🔔 Activer les notifications</button>
+          <button class="btn btn-sm btn-full" id="push-disable-btn" style="display:none;background:#888;color:#fff" onclick="disablePushNotifications()">Désactiver les notifications</button>
+          <button class="btn btn-sm btn-full" id="push-test-btn" style="display:none;background:#5a9e6f;color:#fff" onclick="testPushNotification()">🧪 Envoyer une notification test</button>
+          <div id="push-notif-status" style="font-size:.8rem;margin-top:2px;opacity:.7;text-align:center"></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
       <!-- [DISABLED] Paramètres de la maison — gérés dans l'app
       <div>
         <div class="settings-section">Paramètres de la maison</div>
@@ -542,6 +556,14 @@ const LS_ALERTS   = 'woodmood_alerts';
 const LS_HOUSE    = 'woodmood_house';
 const LS_SCHED    = 'woodmood_schedule';
 const LS_SCHED_EN = 'woodmood_sched_enabled';
+const LS_PUSH     = 'woodmood_push_enabled';
+
+const RELAY_URL     = 'https://woodmood-relay.fly.dev';
+const RELAY_SECRET  = 'woodmood-jjqf9d-2026';
+const RELAY_HEADERS = {
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${RELAY_SECRET}`
+};
 
 let cfg              = JSON.parse(localStorage.getItem(LS) || '{}');
 let client           = null;
@@ -563,6 +585,9 @@ let schedEnabled     = false;
 let schedDrag        = null;
 let schedSlotTimer   = null;
 let lastSchedSlot    = -1;
+let _pushSub         = null;
+let lastFaultMsg     = '';
+const _pushThrottle  = {};
 
 // Suivi d'état dérivé
 let stoveTemp          = null;   // dernière température du poêle (°C) via MQTT
@@ -752,15 +777,21 @@ function onMessage(topic, payloadBuf) {
     updateBleRoomTemp(); return;
   }
   if (sub === 'status/log_level_l') {
+    const prevL = logL;
     logL = parseInt(payload) || 0;
     renderBars('left', logL);
     document.getElementById('count-left').textContent = logL + ' bûches';
+    if (logL === 0 && prevL !== 0) triggerPush('empty-L', '🪵 WoodMood — Cassette gauche vide', 'Rechargez la cassette de bûches gauche');
+    else if (logL === 1 && prevL !== 1) triggerPush('low-L', '🪵 WoodMood — Cassette gauche basse', 'Il reste seulement 1 bûche à gauche');
     calcBurnTime(); return;
   }
   if (sub === 'status/log_level_r') {
+    const prevR = logR;
     logR = parseInt(payload) || 0;
     renderBars('right', logR);
     document.getElementById('count-right').textContent = logR + ' bûches';
+    if (logR === 0 && prevR !== 0) triggerPush('empty-R', '🪵 WoodMood — Cassette droite vide', 'Rechargez la cassette de bûches droite');
+    else if (logR === 1 && prevR !== 1) triggerPush('low-R', '🪵 WoodMood — Cassette droite basse', 'Il reste seulement 1 bûche à droite');
     calcBurnTime(); return;
   }
   if (sub === 'status/system_state') {
@@ -982,6 +1013,7 @@ function setFault(active, side, ready) {
   if (faultActive) {
     banner.classList.add('show');
     if (!wasActive) {
+      triggerPush('fault', '⚠️ WoodMood — Défaut détecté', lastFaultMsg || 'Le poêle nécessite votre attention');
       // Nouvelle panne — réinitialiser à la phase 1
       clearFaultCountdown();
       faultReady = false;
@@ -1060,6 +1092,7 @@ function resolveFault() {
 
 function setFaultMsg(msg) {
   if (!msg) return;
+  lastFaultMsg = msg;
   const el = document.getElementById('fault-msg-text');
   if (el) el.textContent = msg;
 }
@@ -1526,10 +1559,114 @@ function saveSchedule() {
 }
 
 // ============================================================
+// NOTIFICATIONS PUSH
+// ============================================================
+function triggerPush(tag, title, body) {
+  if (Notification.permission === 'granted') {
+    const now = Date.now();
+    if (_pushThrottle[tag] && now - _pushThrottle[tag] < 60_000) return;
+    _pushThrottle[tag] = now;
+    const n = new Notification(title, { body, icon: 'icon-192.png', tag, renotify: true });
+    n.onclick = () => { window.focus(); n.close(); };
+  }
+}
+
+async function enablePushNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    updatePushStatus('unsupported'); return;
+  }
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') { updatePushStatus('blocked'); return; }
+
+  try {
+    const { key } = await fetch(`${RELAY_URL}/vapid-public-key`, { headers: RELAY_HEADERS }).then(r => r.json());
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(key)
+    });
+    const serial = document.getElementById('cfg-serial')?.value || cfg.serial || 'JJQF9D';
+    await fetch(`${RELAY_URL}/subscribe`, {
+      method: 'POST', headers: RELAY_HEADERS,
+      body: JSON.stringify({ subscription: sub, serial })
+    });
+    _pushSub = sub;
+    localStorage.setItem(LS_PUSH, '1');
+    updatePushStatus('enabled');
+  } catch(e) {
+    console.error('Push subscribe failed:', e);
+    updatePushStatus('error');
+  }
+}
+
+async function disablePushNotifications() {
+  if (_pushSub) {
+    await fetch(`${RELAY_URL}/subscribe`, {
+      method: 'DELETE', headers: RELAY_HEADERS,
+      body: JSON.stringify({ endpoint: _pushSub.endpoint })
+    }).catch(() => {});
+    await _pushSub.unsubscribe().catch(() => {});
+    _pushSub = null;
+  }
+  localStorage.removeItem(LS_PUSH);
+  updatePushStatus('disabled');
+}
+
+async function testPushNotification() {
+  const btn = document.getElementById('push-test-btn');
+  btn.textContent = 'Envoi…';
+  btn.disabled = true;
+  try {
+    const serial = document.getElementById('cfg-serial')?.value || cfg.serial || 'JJQF9D';
+    const res = await fetch(`${RELAY_URL}/test`, {
+      method: 'POST', headers: RELAY_HEADERS,
+      body: JSON.stringify({ serial })
+    });
+    const data = await res.json();
+    btn.textContent = data.ok ? '✅ Envoyé ! Vérifiez votre téléphone' : `⚠️ ${data.reason}`;
+  } catch(e) {
+    btn.textContent = '⚠️ Échec — le relais est-il actif ?';
+  }
+  setTimeout(() => { btn.textContent = '🧪 Envoyer une notification test'; btn.disabled = false; }, 4000);
+}
+
+function updatePushStatus(state) {
+  const el   = document.getElementById('push-notif-status');
+  const btn  = document.getElementById('push-enable-btn');
+  const btnD = document.getElementById('push-disable-btn');
+  const btnT = document.getElementById('push-test-btn');
+  if (!el) return;
+  const map = {
+    enabled:     '✅ Notifications push actives',
+    disabled:    '',
+    blocked:     '❌ Bloqué — activez dans les réglages du navigateur/téléphone',
+    unsupported: '⚠️ Non supporté sur ce navigateur',
+    error:       '⚠️ Échec de configuration — réessayez'
+  };
+  el.textContent = map[state] ?? '';
+  const on = state === 'enabled';
+  if (btn)  btn.style.display  = on ? 'none'  : 'block';
+  if (btnD) btnD.style.display = on ? 'block' : 'none';
+  if (btnT) btnT.style.display = on ? 'block' : 'none';
+}
+
+function urlBase64ToUint8Array(base64) {
+  const pad = '='.repeat((4 - base64.length % 4) % 4);
+  const b64 = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+  return Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+}
+
+// ============================================================
 // SERVICE WORKER (PWA)
 // ============================================================
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('service-worker.js');
+  navigator.serviceWorker.register('service-worker.js').then(async reg => {
+    const existing = await reg.pushManager.getSubscription();
+    if (existing && localStorage.getItem(LS_PUSH)) {
+      _pushSub = existing;
+      updatePushStatus('enabled');
+    }
+  });
 }
 </script>
 </body>
