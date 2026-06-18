@@ -78,6 +78,7 @@
     .btn-orange{background:#e67e22;color:#fff}
     .btn-blue  {background:#2980b9;color:#fff}
     .btn-gray  {background:#7f8c8d;color:#fff}
+    .btn-tan   {background:#c98a4b;color:#fff}
     .btn-sm    {padding:7px 10px;font-size:.82rem}
     .btn-full  {width:100%}
     .row-btns  {display:flex;gap:8px}
@@ -165,6 +166,18 @@
     .offline-box{background:#fff;border-radius:18px;padding:24px;max-width:300px;text-align:center}
     .offline-box h2{color:#c0392b;margin-bottom:8px}
     .offline-box p{font-size:.88rem;color:#555;margin-bottom:16px}
+    /* ── Modale nombre de bûches ── */
+    #log-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);
+      z-index:150;align-items:center;justify-content:center;padding:20px}
+    #log-modal.show{display:flex}
+    .log-modal-box{background:#fff;border-radius:18px;padding:22px;max-width:320px;width:100%;text-align:center}
+    .log-modal-box h3{color:#8B4513;margin-bottom:14px;font-size:1rem}
+    .log-modal-input{width:100%;box-sizing:border-box;padding:11px;border:1px solid #d0b08a;border-radius:10px;
+      font-size:1.4rem;font-weight:700;text-align:center;color:#8B4513;-moz-appearance:textfield;margin-bottom:16px}
+    .log-modal-input:focus{outline:none;border-color:#8B4513}
+    .log-modal-input::-webkit-outer-spin-button,.log-modal-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+    .log-modal-actions{display:flex;gap:10px}
+    .log-modal-actions .btn{flex:1}
 
     /* ── Misc ── */
     .section-title{font-size:.75rem;font-weight:700;color:#8B4513;text-transform:uppercase;
@@ -233,11 +246,8 @@
   <div class="card" id="conn-card">
     <div class="section-title">Connexion au courtier</div>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <input class="conn-input" id="cfg-broker" placeholder="Courtier  ex. abc123.s1.eu.hivemq.cloud"/>
-      <input class="conn-input" id="cfg-port"   placeholder="Port WSS  ex. 8884" type="number"/>
-      <input class="conn-input" id="cfg-user"   placeholder="Nom d'utilisateur"/>
-      <input class="conn-input" id="cfg-pass"   placeholder="Mot de passe" type="password"/>
       <input class="conn-input" id="cfg-serial" placeholder="Numéro de série  ex. JJQF9D"/>
+      <input class="conn-input" id="cfg-pass"   placeholder="Mot de passe" type="password"/>
       <button class="btn btn-brown btn-full" onclick="saveAndConnect()">Connecter</button>
     </div>
   </div>
@@ -542,6 +552,21 @@
   </div>
 </div>
 
+<!-- ── Modale nombre de bûches ── -->
+<div id="log-modal" onclick="if(event.target===this)closeLogModal()">
+  <div class="log-modal-box">
+    <h3 id="log-modal-title">Nombre de bûches</h3>
+    <input class="log-modal-input" id="log-modal-input" type="number" inputmode="numeric"
+           min="0" max="6" placeholder="0–6"
+           oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,1)"
+           onkeydown="if(event.key==='Enter')logModalOk()"/>
+    <div class="log-modal-actions">
+      <button class="btn btn-tan"   onclick="logModalFull()">Cassette pleine</button>
+      <button class="btn btn-brown" onclick="logModalOk()">OK</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ============================================================
 // CONFIGURATION
@@ -557,6 +582,11 @@ const LS_HOUSE    = 'woodmood_house';
 const LS_SCHED    = 'woodmood_schedule';
 const LS_SCHED_EN = 'woodmood_sched_enabled';
 const LS_PUSH     = 'woodmood_push_enabled';
+
+// Broker is the same for every device — only the serial + password differ per user.
+const MQTT_BROKER = 'pb666061.ala.eu-central-1.emqxsl.com';
+const MQTT_PORT   = 8884;
+const MQTT_USER   = 'HenriWM123';
 
 const RELAY_URL     = 'https://woodmood-relay.fly.dev';
 const RELAY_SECRET  = 'woodmood-jjqf9d-2026';
@@ -617,7 +647,7 @@ window.addEventListener('load', () => {
   // Restaure la dernière température souhaitée depuis localStorage
   const savedRoom = parseInt(localStorage.getItem('woodmood_room_temp'));
   if (savedRoom >= 18 && savedRoom <= 23) roomTemp = savedRoom;
-  if (cfg.broker && cfg.user && cfg.pass && cfg.serial) {
+  if (cfg.pass && cfg.serial) {
     fillForm();
     document.getElementById('conn-card').style.display = 'none';
     connect();
@@ -628,11 +658,8 @@ window.addEventListener('load', () => {
 });
 
 function fillForm() {
-  document.getElementById('cfg-broker').value = cfg.broker || '';
-  document.getElementById('cfg-port').value   = cfg.port   || '8884';
-  document.getElementById('cfg-user').value   = cfg.user   || '';
-  document.getElementById('cfg-pass').value   = cfg.pass   || '';
   document.getElementById('cfg-serial').value = cfg.serial || '';
+  document.getElementById('cfg-pass').value   = cfg.pass   || '';
 }
 
 function toggleConnPanel() {
@@ -645,12 +672,12 @@ function toggleConnPanel() {
 // CONNECTION
 // ============================================================
 function saveAndConnect() {
-  cfg.broker = document.getElementById('cfg-broker').value.trim();
-  cfg.port   = parseInt(document.getElementById('cfg-port').value.trim()) || 8884;
-  cfg.user   = document.getElementById('cfg-user').value.trim();
+  cfg.broker = MQTT_BROKER;
+  cfg.port   = MQTT_PORT;
+  cfg.user   = MQTT_USER;
   cfg.pass   = document.getElementById('cfg-pass').value.trim();
   cfg.serial = document.getElementById('cfg-serial').value.trim();
-  if (!cfg.broker || !cfg.user || !cfg.serial) { alert('Veuillez remplir tous les champs'); return; }
+  if (!cfg.pass || !cfg.serial) { alert('Veuillez remplir tous les champs'); return; }
   localStorage.setItem(LS, JSON.stringify(cfg));
   document.getElementById('conn-card').style.display = 'none';
   connect();
@@ -662,8 +689,8 @@ function connect() {
 
   if (client) { try { client.end(true); } catch(e){} }
 
-  client = mqtt.connect(`wss://${cfg.broker}:${cfg.port || 8884}/mqtt`, {
-    username:        cfg.user,
+  client = mqtt.connect(`wss://${MQTT_BROKER}:${MQTT_PORT}/mqtt`, {
+    username:        MQTT_USER,
     password:        cfg.pass,
     clientId:        'woodmood-web-' + Math.random().toString(16).substr(2,8),
     keepalive:       60,
@@ -1134,16 +1161,42 @@ function unlockDoor(side) {
   publish('cmd/door_' + mapSide(side), '1');
 }
 
+let logModalSide = 'l';
+
+// "Mettre à jour" → open the number pop-up for this cassette.
 function updateLogCount(side) {
-  const id  = side === 'l' ? 'count-left' : 'count-right';
-  const cur = document.getElementById(id).textContent.replace(' bûches','').trim();
-  const val = prompt('Nombre de bûches pour la cassette ' + (side==='l'?'gauche':'droite') + ' (0–6) :', cur === '—' ? '0' : cur);
-  if (val === null) return;
-  const n = Math.min(6, Math.max(0, parseInt(val) || 0));
+  logModalSide = side;
+  document.getElementById('log-modal-title').textContent =
+    'Nombre de bûches — cassette ' + (side === 'l' ? 'gauche' : 'droite');
+  const input = document.getElementById('log-modal-input');
+  input.value = '';
+  document.getElementById('log-modal').classList.add('show');
+  setTimeout(() => input.focus(), 50);
+}
+
+// Left button — "Cassette pleine" → full (6), no typing.
+function logModalFull() {
+  applyLogCount(logModalSide, 6);
+  closeLogModal();
+}
+
+// Right button — "OK" → apply the typed number (ignore if empty).
+function logModalOk() {
+  const raw = document.getElementById('log-modal-input').value.trim();
+  if (raw !== '') applyLogCount(logModalSide, parseInt(raw, 10));
+  closeLogModal();
+}
+
+function closeLogModal() {
+  document.getElementById('log-modal').classList.remove('show');
+}
+
+function applyLogCount(side, n) {
+  n = Math.min(6, Math.max(0, n || 0));
   if (side === 'l') logL = n; else logR = n;
   publish('cmd/log_level_' + mapSide(side), n);
   renderBars(side === 'l' ? 'left' : 'right', n);
-  document.getElementById(id).textContent = n + ' bûches';
+  document.getElementById(side === 'l' ? 'count-left' : 'count-right').textContent = n + ' bûches';
   calcBurnTime();
 }
 
