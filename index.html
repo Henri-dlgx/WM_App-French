@@ -206,6 +206,10 @@
     .sched-badge{font-size:.62rem;font-weight:700;color:#8B4513;background:rgba(139,69,19,.1);
       border-radius:20px;padding:1px 7px;margin-top:3px;display:none;letter-spacing:.02em}
     .sched-badge.active{display:inline-block}
+    .sched-tabs{display:flex;gap:4px;background:#f0e6da;border-radius:9px;padding:3px;margin-bottom:10px}
+    .sched-tab{flex:1;border:0;background:transparent;color:#8a6a4f;font-size:.8rem;font-weight:700;
+      padding:6px 0;border-radius:7px;cursor:pointer;transition:.2s;font-family:inherit}
+    .sched-tab.active{background:#8B4513;color:#fff;box-shadow:0 1px 3px rgba(139,69,19,.3)}
 
     /* ── Toast ── */
     #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
@@ -515,6 +519,10 @@
         </div>
         <div class="settings-section">Programmation de température</div>
         <div style="font-size:.78rem;color:#888;margin-bottom:10px">Faites glisser les points pour régler le confort par tranche de 2h (T1–T6)</div>
+        <div class="sched-tabs">
+          <button type="button" class="sched-tab active" id="sched-tab-week"    onclick="setSchedEditMode('week')">Semaine</button>
+          <button type="button" class="sched-tab"        id="sched-tab-weekend" onclick="setSchedEditMode('weekend')">Week-end</button>
+        </div>
         <svg id="schedule-svg" width="100%" viewBox="0 0 320 155" style="display:block;touch-action:none;overflow:visible"></svg>
         <div id="sched-status" style="font-size:.78rem;color:#8B4513;margin-top:8px;text-align:center;min-height:1.2em"></div>
         <button class="btn btn-brown btn-sm btn-full" style="margin-top:8px" onclick="saveSchedule()">Enregistrer et appliquer</button>
@@ -579,7 +587,8 @@ const SWAP_SIDES = false;   // true = inverser gauche/droite par rapport au firm
 const LS          = 'woodmood_cfg';
 const LS_ALERTS   = 'woodmood_alerts';
 const LS_HOUSE    = 'woodmood_house';
-const LS_SCHED    = 'woodmood_schedule';
+const LS_SCHED    = 'woodmood_schedule';        // ancien format (tableau plat) — lu pour migration
+const LS_SCHED_V2 = 'woodmood_schedule_v2';     // {week:[12], weekend:[12]}
 const LS_SCHED_EN = 'woodmood_sched_enabled';
 const LS_PUSH     = 'woodmood_push_enabled';
 
@@ -610,11 +619,14 @@ let faultReady           = false;   // le firmware signale que la panne peut êt
 let faultCountdownActive = false;   // décompte local de 10 s en cours
 let faultCountdownTimer  = null;
 let insulation       = null;
-let schedTemps       = Array(12).fill(20);
+let schedWeek        = Array(12).fill(20);  // programmation jours de semaine (lun–ven)
+let schedWeekend     = Array(12).fill(20);  // programmation week-end (sam–dim)
+let schedEditMode    = 'week';              // courbe en cours d'édition : 'week' | 'weekend'
 let schedEnabled     = false;
 let schedDrag        = null;
 let schedSlotTimer   = null;
 let lastSchedSlot    = -1;
+let lastDayType      = null;                // 'week' | 'weekend' — détecte le passage semaine↔week-end
 let _pushSub         = null;
 let lastFaultMsg     = '';
 const _pushThrottle  = {};
@@ -706,16 +718,25 @@ function connect() {
     document.getElementById('offline-overlay').classList.remove('show');
     client.subscribe(prefix + '/status/#');
     client.subscribe(prefix + '/schedule');
-    if (schedTemps.some(t => t !== 20))
-      client.publish(prefix + '/schedule', JSON.stringify(schedTemps), { qos:1, retain:true });
+    if (schedWeek.some(t => t !== 20) || schedWeekend.some(t => t !== 20))
+      client.publish(prefix + '/schedule', schedPayload(), { qos:1, retain:true });
     // Appliquer le créneau de programmation actuel à la (re)connexion
     lastSchedSlot = Math.floor(new Date().getHours() / 2);
+    lastDayType   = isWeekendDay() ? 'weekend' : 'week';
     applyScheduleSlot();
-    // Surveiller les changements de créneau (toutes les minutes)
+    // Surveiller les changements de créneau / de type de jour (toutes les minutes)
     if (!schedSlotTimer) {
       schedSlotTimer = setInterval(function() {
         const slot = Math.floor(new Date().getHours() / 2);
-        if (slot !== lastSchedSlot) {
+        const dt   = isWeekendDay() ? 'weekend' : 'week';
+        const dayChanged = dt !== lastDayType;
+        if (dayChanged) {
+          lastDayType = dt;
+          // Re-publier pour que le firmware (repli NTP) suive la courbe du nouveau type de jour
+          if (schedEnabled && client && client.connected)
+            client.publish(prefix + '/schedule', schedPayload(), { qos:1, retain:true });
+        }
+        if (slot !== lastSchedSlot || dayChanged) {
           lastSchedSlot = slot;
           applyScheduleSlot();
         }
@@ -768,12 +789,16 @@ function onMessage(topic, payloadBuf) {
 
   if (sub === 'schedule') {
     try {
-      const arr = JSON.parse(payload);
-      if (Array.isArray(arr) && arr.length === 12) {
-        schedTemps = arr.map(t => Math.min(23, Math.max(18, Math.round(t))));
-        localStorage.setItem(LS_SCHED, JSON.stringify(schedTemps));
-        if (optionsOpen) renderScheduleSVG();
-      }
+      const data = JSON.parse(payload);
+      if (data && Array.isArray(data.week) && Array.isArray(data.weekend)) {
+        schedWeek    = sanitizeSched(data.week);
+        schedWeekend = sanitizeSched(data.weekend);
+      } else if (Array.isArray(data) && data.length === SCHED_SLOTS) {
+        // Ancien format (tableau plat) → appliqué aux deux courbes
+        schedWeek = sanitizeSched(data); schedWeekend = sanitizeSched(data);
+      } else return;
+      persistSched();
+      if (optionsOpen && !schedDrag) renderScheduleSVG();
     } catch(e) {}
     return;
   }
@@ -1375,10 +1400,37 @@ function spY(t)     { return SPT + (SCHED_TMAX - t) / (SCHED_TMAX - SCHED_TMIN) 
 function spYtoT(py) { return Math.round(Math.min(SCHED_TMAX, Math.max(SCHED_TMIN, SCHED_TMAX - (py - SPT) / SPH * (SCHED_TMAX - SCHED_TMIN)))); }
 function tempToLabel(t) { return 'T' + (t - SCHED_TMIN + 1); }  // 18→T1, 19→T2 … 23→T6
 
+function sanitizeSched(arr) {
+  const out = Array(SCHED_SLOTS).fill(20);
+  if (Array.isArray(arr))
+    for (let i = 0; i < SCHED_SLOTS; i++)
+      if (arr[i] != null) out[i] = Math.min(SCHED_TMAX, Math.max(SCHED_TMIN, Math.round(arr[i])));
+  return out;
+}
+function isWeekendDay() { const g = new Date().getDay(); return g === 0 || g === 6; }   // 0=dim, 6=sam
+function activeSched()  { return isWeekendDay()              ? schedWeekend : schedWeek; } // courbe du jour
+function editSched()    { return schedEditMode === 'weekend' ? schedWeekend : schedWeek; } // courbe éditée
+function persistSched() { localStorage.setItem(LS_SCHED_V2, JSON.stringify({ week: schedWeek, weekend: schedWeekend })); }
+function schedPayload() {
+  // La courbe du jour est sérialisée en premier : le firmware ne lit que les 12 premiers entiers.
+  return isWeekendDay()
+    ? JSON.stringify({ weekend: schedWeekend, week: schedWeek })
+    : JSON.stringify({ week: schedWeek, weekend: schedWeekend });
+}
+
 function initSchedule() {
-  const saved = JSON.parse(localStorage.getItem(LS_SCHED) || 'null');
-  if (Array.isArray(saved) && saved.length === SCHED_SLOTS)
-    schedTemps = saved.map(t => Math.min(SCHED_TMAX, Math.max(SCHED_TMIN, Math.round(t))));
+  const v2 = JSON.parse(localStorage.getItem(LS_SCHED_V2) || 'null');
+  if (v2 && Array.isArray(v2.week) && Array.isArray(v2.weekend)) {
+    schedWeek    = sanitizeSched(v2.week);
+    schedWeekend = sanitizeSched(v2.weekend);
+  } else {
+    // Migration : ancienne programmation unique → copiée sur semaine + week-end
+    const legacy = JSON.parse(localStorage.getItem(LS_SCHED) || 'null');
+    if (Array.isArray(legacy) && legacy.length === SCHED_SLOTS) {
+      schedWeek    = sanitizeSched(legacy);
+      schedWeekend = sanitizeSched(legacy);
+    }
+  }
   schedEnabled = localStorage.getItem(LS_SCHED_EN) === '1';
   document.getElementById('sched-badge').classList.toggle('active', schedEnabled);
 }
@@ -1389,9 +1441,24 @@ function toggleOptions() {
   document.getElementById('options-arrow').classList.toggle('open', optionsOpen);
   if (optionsOpen) {
     document.getElementById('tog-sched-enable').checked = schedEnabled;
+    schedEditMode = isWeekendDay() ? 'weekend' : 'week';   // ouvrir sur la courbe du jour
+    updateSchedTabs();
     renderScheduleSVG();
     updateSchedStatus();
   }
+}
+
+function setSchedEditMode(mode) {
+  schedEditMode = mode;
+  updateSchedTabs();
+  renderScheduleSVG();
+}
+
+function updateSchedTabs() {
+  const w = document.getElementById('sched-tab-week');
+  const e = document.getElementById('sched-tab-weekend');
+  if (w) w.classList.toggle('active', schedEditMode === 'week');
+  if (e) e.classList.toggle('active', schedEditMode === 'weekend');
 }
 
 function setSchedEnabled(on) {
@@ -1405,7 +1472,7 @@ function setSchedEnabled(on) {
 function applyScheduleSlot() {
   if (!schedEnabled || !client || !client.connected) return;
   const slot = Math.floor(new Date().getHours() / 2);
-  const t = schedTemps[slot];
+  const t = activeSched()[slot];
   if (t < SCHED_TMIN || t > SCHED_TMAX) return;
   roomTemp = t;
   document.getElementById('room-val').textContent = tempToLabel(roomTemp);
@@ -1418,10 +1485,11 @@ function updateSchedStatus() {
   const el = document.getElementById('sched-status');
   if (!el) return;
   if (!schedEnabled) { el.textContent = ''; return; }
+  const arr  = activeSched();
   const slot = Math.floor(new Date().getHours() / 2);
-  const t = schedTemps[slot];
   const nextSlot = (slot + 1) % SCHED_SLOTS;
-  el.textContent = 'Maintenant (' + (slot*2) + 'h–' + (slot*2+2) + 'h) : ' + tempToLabel(t) + '  →  Suivant : ' + tempToLabel(schedTemps[nextSlot]);
+  const dayLbl = isWeekendDay() ? 'Week-end' : 'Semaine';
+  el.textContent = dayLbl + ' · ' + (slot*2) + 'h–' + (slot*2+2) + 'h : ' + tempToLabel(arr[slot]) + '  →  Suivant : ' + tempToLabel(arr[nextSlot]);
 }
 
 function smoothPath(pts) {
@@ -1446,6 +1514,10 @@ function renderScheduleSVG() {
   if (!svg) return;
   const ns = 'http://www.w3.org/2000/svg';
   svg.innerHTML = '';
+
+  const cur = editSched();   // courbe en cours d'édition (semaine ou week-end)
+  // Le repère du créneau actuel n'a de sens que si on édite la courbe du jour
+  const editingToday = schedEditMode === (isWeekendDay() ? 'weekend' : 'week');
 
   // Dégradé
   const defs = document.createElementNS(ns, 'defs');
@@ -1474,13 +1546,15 @@ function renderScheduleSVG() {
   // Mise en surbrillance du créneau de 2h en cours
   const curSlot = Math.floor(new Date().getHours() / 2);
   const slotW   = SPW / (SCHED_SLOTS - 1);
-  const hlRect  = document.createElementNS(ns, 'rect');
-  hlRect.setAttribute('x', spX(curSlot) - slotW / 2); hlRect.setAttribute('y', SPT);
-  hlRect.setAttribute('width', slotW); hlRect.setAttribute('height', SPH);
-  hlRect.setAttribute('fill', 'rgba(139,69,19,0.07)'); hlRect.setAttribute('rx', '3');
-  svg.appendChild(hlRect);
+  if (editingToday) {
+    const hlRect = document.createElementNS(ns, 'rect');
+    hlRect.setAttribute('x', spX(curSlot) - slotW / 2); hlRect.setAttribute('y', SPT);
+    hlRect.setAttribute('width', slotW); hlRect.setAttribute('height', SPH);
+    hlRect.setAttribute('fill', 'rgba(139,69,19,0.07)'); hlRect.setAttribute('rx', '3');
+    svg.appendChild(hlRect);
+  }
 
-  const pts = schedTemps.map((t, i) => ({ x: spX(i), y: spY(t) }));
+  const pts = cur.map((t, i) => ({ x: spX(i), y: spY(t) }));
 
   // Remplissage sous la courbe
   const fill = document.createElementNS(ns, 'path');
@@ -1502,8 +1576,8 @@ function renderScheduleSVG() {
     const lbl = document.createElementNS(ns, 'text');
     lbl.setAttribute('x', spX(i)); lbl.setAttribute('y', SPB + 15);
     lbl.setAttribute('text-anchor', 'middle'); lbl.setAttribute('font-size', '8.5');
-    lbl.setAttribute('fill', i === curSlot ? '#8B4513' : '#bba090');
-    lbl.setAttribute('font-weight', i === curSlot ? '700' : 'normal');
+    lbl.setAttribute('fill', editingToday && i === curSlot ? '#8B4513' : '#bba090');
+    lbl.setAttribute('font-weight', editingToday && i === curSlot ? '700' : 'normal');
     lbl.textContent = (i * 2) + 'h';
     svg.appendChild(lbl);
   }
@@ -1531,7 +1605,7 @@ function renderScheduleSVG() {
     tlbl.setAttribute('y', p.y < 22 ? p.y + 18 : p.y - 9);
     tlbl.setAttribute('text-anchor', 'middle'); tlbl.setAttribute('font-size', '9');
     tlbl.setAttribute('font-weight', '700'); tlbl.setAttribute('fill', '#8B4513');
-    tlbl.textContent = tempToLabel(schedTemps[i]);
+    tlbl.textContent = tempToLabel(cur[i]);
     g.appendChild(tlbl);
 
     svg.appendChild(g);
@@ -1544,7 +1618,8 @@ function renderScheduleSVG() {
 function updateScheduleSVG() {
   const svg = document.getElementById('schedule-svg');
   if (!svg) return;
-  const pts = schedTemps.map(function(t, i) { return { x: spX(i), y: spY(t) }; });
+  const cur = editSched();
+  const pts = cur.map(function(t, i) { return { x: spX(i), y: spY(t) }; });
 
   const curve = svg.querySelector('#sched-curve');
   if (curve) curve.setAttribute('d', smoothPath(pts));
@@ -1559,7 +1634,7 @@ function updateScheduleSVG() {
     const lbl = g.querySelector('.sched-lbl-' + i);
     if (lbl) {
       lbl.setAttribute('y', p.y < 22 ? p.y + 18 : p.y - 9);
-      lbl.textContent = tempToLabel(schedTemps[i]);
+      lbl.textContent = tempToLabel(cur[i]);
     }
   });
 }
@@ -1588,8 +1663,9 @@ function schedOnMove(e) {
   const clientY = e.touches ? e.touches[0].clientY : e.clientY;
   const sp      = svgClientToPoint(schedDrag.svg, 0, clientY);
   const newTemp = spYtoT(sp.y);
-  if (schedTemps[schedDrag.idx] === newTemp) return;
-  schedTemps[schedDrag.idx] = newTemp;
+  const cur = editSched();
+  if (cur[schedDrag.idx] === newTemp) return;
+  cur[schedDrag.idx] = newTemp;
   updateScheduleSVG();
   updateSchedStatus();
 }
@@ -1603,10 +1679,10 @@ function schedOnUp() {
 }
 
 function saveSchedule() {
-  localStorage.setItem(LS_SCHED, JSON.stringify(schedTemps));
+  persistSched();
   updateSchedStatus();
   if (!client || !client.connected) { showToast('Enregistré localement (non connecté)'); return; }
-  client.publish(prefix + '/schedule', JSON.stringify(schedTemps), { qos: 1, retain: true });
+  client.publish(prefix + '/schedule', schedPayload(), { qos: 1, retain: true });
   applyScheduleSlot();
   showToast(schedEnabled ? 'Programmation enregistrée et appliquée' : 'Programmation enregistrée (activez pour l\'appliquer)');
 }
