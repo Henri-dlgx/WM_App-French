@@ -166,10 +166,10 @@
     .offline-box{background:#fff;border-radius:18px;padding:24px;max-width:300px;text-align:center}
     .offline-box h2{color:#c0392b;margin-bottom:8px}
     .offline-box p{font-size:.88rem;color:#555;margin-bottom:16px}
-    /* ── Modale nombre de bûches ── */
-    #log-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);
+    /* ── Modale nombre de bûches / choix du côté ── */
+    #log-modal, #joint-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);
       z-index:150;align-items:center;justify-content:center;padding:20px}
-    #log-modal.show{display:flex}
+    #log-modal.show, #joint-modal.show{display:flex}
     .log-modal-box{background:#fff;border-radius:18px;padding:22px;max-width:320px;width:100%;text-align:center}
     .log-modal-box h3{color:#8B4513;margin-bottom:14px;font-size:1rem}
     .log-modal-input{width:100%;box-sizing:border-box;padding:11px;border:1px solid #d0b08a;border-radius:10px;
@@ -438,7 +438,7 @@
           <div class="maint-row">
             <span class="maint-lbl">Remplacer le joint</span>
             <span class="maint-val" id="joint-days">— jours</span>
-            <button class="btn btn-brown btn-sm" style="flex:none" onclick="replaceJoint()">Vérifier</button>
+            <button class="btn btn-brown btn-sm" style="flex:none" onclick="changerJoint()">Changer le joint</button>
           </div>
           <div class="maint-row">
             <span class="maint-lbl">Ramonage</span>
@@ -571,6 +571,29 @@
     <div class="log-modal-actions">
       <button class="btn btn-tan"   onclick="logModalFull()">Cassette pleine</button>
       <button class="btn btn-brown" onclick="logModalOk()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modale changer le joint (choix du côté + service en cours) ── -->
+<div id="joint-modal" onclick="if(event.target===this)closeJointModal()">
+  <div class="log-modal-box">
+    <!-- Vue 1 : choix du côté -->
+    <div id="joint-choose">
+      <h3>Changer le joint — quel côté ?</h3>
+      <p style="font-size:.82rem;color:#555;margin:-6px 0 14px">La trappe s'ouvre partiellement et la porte se déverrouille. Le poêle doit être à l'arrêt et froid.</p>
+      <div class="log-modal-actions">
+        <button class="btn btn-tan"   onclick="jointStart('l')">Gauche</button>
+        <button class="btn btn-brown" onclick="jointStart('r')">Droite</button>
+      </div>
+    </div>
+    <!-- Vue 2 : service en cours -->
+    <div id="joint-progress" style="display:none">
+      <h3>Service en cours — côté <span id="joint-side-lbl">—</span></h3>
+      <p style="font-size:.82rem;color:#555;margin:-6px 0 14px">La trappe est ouverte et la porte déverrouillée. Remplacez le joint, refermez la porte de chargement, puis appuyez sur Terminé.</p>
+      <div class="log-modal-actions">
+        <button class="btn btn-brown" onclick="jointDone()">J'ai terminé</button>
+      </div>
     </div>
   </div>
 </div>
@@ -746,7 +769,14 @@ function connect() {
 
   client.on('message',   onMessage);
   client.on('offline',   () => { setDotState('disconnected'); showOffline(); });
-  client.on('error',     () => { setDotState('disconnected'); });
+  client.on('error',     (err) => {
+    // Surface the real reason (e.g. "Connection refused: Not authorized" for bad
+    // credentials) instead of silently showing "déconnecté".
+    const reason = (err && err.message) ? err.message : String(err);
+    console.error('[MQTT] connection error:', reason, err);
+    showToast('Échec MQTT : ' + reason);
+    setDotState('disconnected');
+  });
   client.on('reconnect', () => { setDotState('connecting');   });
 }
 
@@ -1340,16 +1370,57 @@ function saveAlerts() {
 // ============================================================
 // PARAMÈTRES — MAINTENANCE
 // ============================================================
-function replaceJoint() {
-  const temp = parseFloat(document.getElementById('stove-temp').textContent);
-  if (!isNaN(temp) && temp > 100) {
-    alert('Le poêle est au-dessus de 100°. Laissez-le refroidir avant de remplacer le joint.');
+// Changer le joint : opération à froid, poêle à l'arrêt — sans rapport avec une
+// panne. Conditions : système en veille ET température ≤ 40°. L'utilisateur choisit
+// le côté, le firmware entrouvre la trappe + déverrouille la porte, puis attend
+// « J'ai terminé » pour refermer la trappe (vérif. porte fermée côté firmware).
+let jointServiceActive = false;   // true entre le démarrage et « terminé »
+let jointSide = 'l';
+
+function changerJoint() {
+  // Service déjà en cours : revenir directement à la vue « Terminé » sans
+  // ré-appliquer le verrou froid/veille (le poêle est en pleine intervention).
+  if (jointServiceActive) {
+    showJointView('progress');
+    document.getElementById('joint-modal').classList.add('show');
     return;
   }
-  if (!confirm('Ouvrir la trappe pour remplacer le joint (5 secondes) ?')) return;
-  const side = faultSide || 'l';
-  publish('cmd/door_' + side, '1');
-  setTimeout(() => publish('cmd/door_' + side, '0'), 5000);
+  if (systemState !== 'standby') {
+    alert('Le poêle doit être à l\'arrêt (en veille) pour changer le joint. Arrêtez-le et laissez-le refroidir.');
+    return;
+  }
+  const temp = parseFloat(document.getElementById('stove-temp').textContent);
+  if (!isNaN(temp) && temp > 40) {
+    alert('Le poêle est encore chaud (' + Math.round(temp) + '°). Laissez-le refroidir sous 40° avant de changer le joint.');
+    return;
+  }
+  showJointView('choose');
+  document.getElementById('joint-modal').classList.add('show');
+}
+
+function jointStart(side) {
+  jointSide = side;
+  jointServiceActive = true;
+  publish('cmd/joint_service', side);   // firmware: entrouvre la trappe + déverrouille
+  document.getElementById('joint-side-lbl').textContent = (side === 'r' ? 'droite' : 'gauche');
+  showJointView('progress');
+  showToast('Ouverture de la trappe côté ' + (side === 'r' ? 'droite' : 'gauche') + '…');
+}
+
+function jointDone() {
+  publish('cmd/joint_done', '1');       // firmware: vérifie porte fermée, referme la trappe
+  jointServiceActive = false;
+  closeJointModal();
+  showToast('Fermeture de la trappe…');
+}
+
+function showJointView(which) {
+  document.getElementById('joint-choose').style.display   = (which === 'choose')   ? '' : 'none';
+  document.getElementById('joint-progress').style.display = (which === 'progress') ? '' : 'none';
+}
+
+function closeJointModal() {
+  document.getElementById('joint-modal').classList.remove('show');
 }
 
 // ============================================================
