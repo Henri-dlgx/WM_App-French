@@ -352,6 +352,31 @@
     </div>
   </div>
 
+  <!-- ── Options ── -->
+  <div class="card">
+    <div class="settings-toggle" onclick="toggleOptions()">
+      <span style="font-weight:700;color:#8B4513">Options</span>
+      <span class="arrow" id="options-arrow">▼</span>
+    </div>
+    <div class="settings-body" id="options-body">
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <span style="font-size:.85rem;font-weight:600;color:#5a3015">Activer la programmation</span>
+          <label class="tgl"><input type="checkbox" id="tog-sched-enable" onchange="setSchedEnabled(this.checked)"><span class="tgl-sl"></span></label>
+        </div>
+        <div class="settings-section">Programmation de température</div>
+        <div style="font-size:.78rem;color:#888;margin-bottom:10px">Faites glisser les points pour régler le confort par tranche de 2h (T1–T6)</div>
+        <div class="sched-tabs">
+          <button type="button" class="sched-tab active" id="sched-tab-week"    onclick="setSchedEditMode('week')">Semaine</button>
+          <button type="button" class="sched-tab"        id="sched-tab-weekend" onclick="setSchedEditMode('weekend')">Week-end</button>
+        </div>
+        <svg id="schedule-svg" width="100%" viewBox="0 0 320 155" style="display:block;touch-action:none;overflow:visible"></svg>
+        <div id="sched-status" style="font-size:.78rem;color:#8B4513;margin-top:8px;text-align:center;min-height:1.2em"></div>
+        <button class="btn btn-brown btn-sm btn-full" style="margin-top:8px" onclick="saveSchedule()">Enregistrer et appliquer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Settings ── -->
   <div class="card">
     <div class="settings-toggle" onclick="toggleSettings()">
@@ -502,31 +527,6 @@
       <!-- Déconnexion -->
       <button class="btn btn-gray btn-full" onclick="disconnect()">Déconnecter</button>
 
-    </div>
-  </div>
-
-  <!-- ── Options ── -->
-  <div class="card">
-    <div class="settings-toggle" onclick="toggleOptions()">
-      <span style="font-weight:700;color:#8B4513">Options</span>
-      <span class="arrow" id="options-arrow">▼</span>
-    </div>
-    <div class="settings-body" id="options-body">
-      <div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <span style="font-size:.85rem;font-weight:600;color:#5a3015">Activer la programmation</span>
-          <label class="tgl"><input type="checkbox" id="tog-sched-enable" onchange="setSchedEnabled(this.checked)"><span class="tgl-sl"></span></label>
-        </div>
-        <div class="settings-section">Programmation de température</div>
-        <div style="font-size:.78rem;color:#888;margin-bottom:10px">Faites glisser les points pour régler le confort par tranche de 2h (T1–T6)</div>
-        <div class="sched-tabs">
-          <button type="button" class="sched-tab active" id="sched-tab-week"    onclick="setSchedEditMode('week')">Semaine</button>
-          <button type="button" class="sched-tab"        id="sched-tab-weekend" onclick="setSchedEditMode('weekend')">Week-end</button>
-        </div>
-        <svg id="schedule-svg" width="100%" viewBox="0 0 320 155" style="display:block;touch-action:none;overflow:visible"></svg>
-        <div id="sched-status" style="font-size:.78rem;color:#8B4513;margin-top:8px;text-align:center;min-height:1.2em"></div>
-        <button class="btn btn-brown btn-sm btn-full" style="margin-top:8px" onclick="saveSchedule()">Enregistrer et appliquer</button>
-      </div>
     </div>
   </div>
 
@@ -1327,25 +1327,35 @@ function applyHeap(freeB, minFreeB, maxAllocB) {
 // PARAMÈTRES — ALERTES
 // ============================================================
 function onAlertOpChange(i) {
-  const op = parseInt(document.getElementById('alert-op-' + i).value);
+  const sel = document.getElementById('alert-op-' + i);
+  if (!sel) return;   // section « Alertes » désactivée — éléments absents du DOM
+  const op = parseInt(sel.value);
   document.getElementById('alert-phone-wrap-' + i).style.display = (op > 0 && op < 4) ? 'block' : 'none';
   document.getElementById('alert-free-wrap-'  + i).style.display = (op === 4)          ? 'block' : 'none';
 }
 
 function loadSettings() {
-  const alerts = JSON.parse(localStorage.getItem(LS_ALERTS) || '{}');
-  for (let i = 1; i <= 3; i++) {
-    if (alerts['email'+i]   !== undefined) document.getElementById('alert-email-'+i).value    = alerts['email'+i];
-    if (alerts['op'+i]      !== undefined) document.getElementById('alert-op-'+i).value       = alerts['op'+i];
-    if (alerts['phone'+i]   !== undefined) document.getElementById('alert-phone-'+i).value    = alerts['phone'+i];
-    if (alerts['freeUid'+i] !== undefined) document.getElementById('alert-free-uid-'+i).value = alerts['freeUid'+i];
-    if (alerts['freeKey'+i] !== undefined) document.getElementById('alert-free-key-'+i).value = alerts['freeKey'+i];
-    if (alerts['en'+i]      !== undefined) document.getElementById('alert-en-'+i).checked      = alerts['en'+i];
-    onAlertOpChange(i);
+  // Les sections « Alertes » et « Paramètres de la maison » sont désactivées (commentées
+  // dans le HTML). On saute leur restauration si les éléments sont absents, sinon
+  // getElementById(...).value lèverait une erreur et interromprait l'init — ce qui empêchait
+  // la restauration automatique du login (numéro de série + mot de passe).
+  if (document.getElementById('alert-op-1')) {
+    const alerts = JSON.parse(localStorage.getItem(LS_ALERTS) || '{}');
+    for (let i = 1; i <= 3; i++) {
+      if (alerts['email'+i]   !== undefined) document.getElementById('alert-email-'+i).value    = alerts['email'+i];
+      if (alerts['op'+i]      !== undefined) document.getElementById('alert-op-'+i).value       = alerts['op'+i];
+      if (alerts['phone'+i]   !== undefined) document.getElementById('alert-phone-'+i).value    = alerts['phone'+i];
+      if (alerts['freeUid'+i] !== undefined) document.getElementById('alert-free-uid-'+i).value = alerts['freeUid'+i];
+      if (alerts['freeKey'+i] !== undefined) document.getElementById('alert-free-key-'+i).value = alerts['freeKey'+i];
+      if (alerts['en'+i]      !== undefined) document.getElementById('alert-en-'+i).checked      = alerts['en'+i];
+      onAlertOpChange(i);
+    }
   }
-  const house = JSON.parse(localStorage.getItem(LS_HOUSE) || '{}');
-  if (house.size)       document.getElementById('house-size').value = house.size;
-  if (house.insulation) setInsulation(house.insulation, false);
+  if (document.getElementById('house-size')) {
+    const house = JSON.parse(localStorage.getItem(LS_HOUSE) || '{}');
+    if (house.size)       document.getElementById('house-size').value = house.size;
+    if (house.insulation) setInsulation(house.insulation, false);
+  }
 }
 
 function saveAlerts() {
