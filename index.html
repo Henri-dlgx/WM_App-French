@@ -1405,6 +1405,10 @@ let jointSide = 'l';
 let jointDonePending = false;     // « Terminé » cliqué : ne pas ré-afficher la
                                   // bannière pendant que le firmware referme la trappe
                                   // (isJointServiceActive() reste vrai un court instant)
+let jointFwConfirmed = false;     // le firmware a confirmé le service actif (joint_active=true)
+                                  // au moins une fois : tant que non confirmé, on ignore un
+                                  // status/full « inactif » résiduel envoyé juste avant que le
+                                  // firmware ne traite la commande (sinon la bannière clignote)
 let doorMainOpen = false;         // interverrouillages de porte (status/full) : la trappe
 let doorLoadOpen = false;         // est commandée par MOSFET et ne s'actionne pas porte ouverte
 
@@ -1449,6 +1453,7 @@ function changerJoint() {
 function jointStart(side) {
   jointSide = side;
   jointServiceActive = true;
+  jointFwConfirmed   = false;           // attendre la confirmation du firmware
   publish('cmd/joint_service', side);   // firmware: entrouvre la trappe + déverrouille
   setJointSideLabel(side);
   showJointView('progress');
@@ -1477,15 +1482,20 @@ function syncJointService(active, side) {
     // « Terminé » déjà cliqué : on attend que le firmware finisse de refermer ;
     // ne pas ré-ouvrir la bannière sur l'état actif résiduel.
     if (jointDonePending) return;
+    jointFwConfirmed   = true;   // le firmware confirme le service en cours
     jointServiceActive = true;
     if (side) { jointSide = side; setJointSideLabel(side); }
     showJointView('progress');
     showJointBanner();
   } else {
-    // Le firmware a refermé la trappe (fin du service) — masquer la bannière.
+    // Service inactif côté firmware. On ne ferme la bannière QUE si le firmware
+    // avait confirmé le service au moins une fois — sinon c'est un status/full
+    // « inactif » résiduel, émis juste avant que le firmware ne traite la commande,
+    // et fermer ici ferait clignoter la bannière fraîchement ouverte.
     jointDonePending = false;
-    if (jointServiceActive) {
+    if (jointServiceActive && jointFwConfirmed) {
       jointServiceActive = false;
+      jointFwConfirmed   = false;
       closeJointBanner();
     }
   }
