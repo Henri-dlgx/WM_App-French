@@ -948,6 +948,8 @@ function applyFull(d) {
     const _js = (d.joint_side || '').toLowerCase();
     syncJointService(!!d.joint_active, (_js === 'right' || _js === 'r') ? 'r' : 'l');
   }
+  if (d.door_main !== undefined) doorMainOpen = !!d.door_main;
+  if (d.door_load !== undefined) doorLoadOpen = !!d.door_load;
   if (d.system_state  !== undefined) { remoteStateReceived = true; if (!isLocked('system_state')) applySystemState(d.system_state); }
   if (d.uptime !== undefined) {
     const h = Math.floor(d.uptime/3600), m = Math.floor((d.uptime%3600)/60);
@@ -1403,6 +1405,8 @@ let jointSide = 'l';
 let jointDonePending = false;     // « Terminé » cliqué : ne pas ré-afficher la
                                   // bannière pendant que le firmware referme la trappe
                                   // (isJointServiceActive() reste vrai un court instant)
+let doorMainOpen = false;         // interverrouillages de porte (status/full) : la trappe
+let doorLoadOpen = false;         // est commandée par MOSFET et ne s'actionne pas porte ouverte
 
 function changerJoint() {
   // Service déjà en cours : afficher directement la bannière « Terminé » sans
@@ -1418,16 +1422,24 @@ function changerJoint() {
   }
   // Fail-CLOSED sur température inconnue : après un redémarrage du firmware le
   // thermocouple n'est pas encore prêt et l'afficheur montre « —° » (parseFloat →
-  // NaN). Si on ne bloque pas ce cas, le garde « ≤ 40° » est ignoré et la trappe
+  // NaN). Si on ne bloque pas ce cas, le garde « ≤ 70° » est ignoré et la trappe
   // peut s'ouvrir à n'importe quelle température (seule la limite firmware à 100°
-  // reste). On exige donc une lecture valide ET ≤ 40°.
+  // reste). On exige donc une lecture valide ET ≤ 70°.
   const temp = parseFloat(document.getElementById('stove-temp').textContent);
   if (isNaN(temp)) {
     alert('Température du poêle inconnue pour le moment. Attendez une lecture valide (quelques secondes après la mise sous tension) avant de changer le joint.');
     return;
   }
-  if (temp > 40) {
-    alert('Le poêle est encore chaud (' + Math.round(temp) + '°). Laissez-le refroidir sous 40° avant de changer le joint.');
+  if (temp > 70) {
+    alert('Le poêle est encore chaud (' + Math.round(temp) + '°). Laissez-le refroidir sous 70° avant de changer le joint.');
+    return;
+  }
+  // La trappe est commandée par MOSFET via les interverrouillages de porte : si une
+  // porte est ouverte, elle est inhibée et ne s'actionnera pas — le firmware croirait
+  // alors la trappe ouverte (« faux positif »). On exige toutes les portes fermées.
+  if (doorMainOpen || doorLoadOpen) {
+    alert('Une porte est ouverte (' + (doorMainOpen ? 'porte principale' : 'porte de chargement')
+          + '). Fermez toutes les portes avant de changer le joint — la trappe ne s\'ouvre pas porte ouverte.');
     return;
   }
   showJointView('choose');
