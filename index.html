@@ -67,6 +67,17 @@
     .btn-resolve{background:#27ae60;font-size:1rem;font-weight:700}
     .btn-reopen{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.4);font-size:.82rem}
 
+    /* ── Joint (gasket) service banner — same slot as the fault banner ── */
+    #joint-banner{display:none;background:#5a3410;color:#fff;border-radius:18px;
+      padding:18px;box-shadow:0 4px 20px rgba(0,0,0,.35)}
+    #joint-banner.show{display:block}
+    .joint-title{font-size:1.05rem;font-weight:700;margin-bottom:6px}
+    .joint-side-badge{display:inline-block;background:rgba(255,255,255,.2);border-radius:8px;padding:3px 10px;font-size:.8rem;font-weight:600;margin-bottom:8px;letter-spacing:.04em}
+    .joint-msg{font-size:.84rem;opacity:.85;margin-bottom:12px}
+    .joint-btn-row{display:flex;gap:8px}
+    .joint-btn-row .btn{flex:1}
+    .btn-cancel{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4)}
+
     /* ── Buttons ── */
     .btn{border:none;border-radius:10px;font-size:.9rem;font-weight:600;
       cursor:pointer;padding:10px 14px;transition:filter .15s;flex:1}
@@ -167,9 +178,9 @@
     .offline-box h2{color:#c0392b;margin-bottom:8px}
     .offline-box p{font-size:.88rem;color:#555;margin-bottom:16px}
     /* ── Modale nombre de bûches / choix du côté ── */
-    #log-modal, #joint-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);
+    #log-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);
       z-index:150;align-items:center;justify-content:center;padding:20px}
-    #log-modal.show, #joint-modal.show{display:flex}
+    #log-modal.show{display:flex}
     .log-modal-box{background:#fff;border-radius:18px;padding:22px;max-width:320px;width:100%;text-align:center}
     .log-modal-box h3{color:#8B4513;margin-bottom:14px;font-size:1rem}
     .log-modal-input{width:100%;box-sizing:border-box;padding:11px;border:1px solid #d0b08a;border-radius:10px;
@@ -284,6 +295,27 @@
       <button class="btn btn-reopen btn-full" onclick="faultUnlockDoor()">
         🔓 Déverrouiller à nouveau la porte <span class="fault-side-name">—</span>
       </button>
+    </div>
+  </div>
+
+  <!-- ── Joint service banner (same slot as the fault banner) ── -->
+  <div id="joint-banner">
+    <!-- Vue 1 : choix du côté -->
+    <div id="joint-choose">
+      <div class="joint-title">🔧 Changer le joint — quel côté ?</div>
+      <div class="joint-msg">La trappe s'ouvre partiellement et la porte se déverrouille. Le poêle doit être à l'arrêt et froid.</div>
+      <div class="joint-btn-row">
+        <button class="btn btn-tan"    onclick="jointStart('l')">Gauche</button>
+        <button class="btn btn-brown"  onclick="jointStart('r')">Droite</button>
+        <button class="btn btn-cancel" onclick="jointCancel()">Annuler</button>
+      </div>
+    </div>
+    <!-- Vue 2 : service en cours -->
+    <div id="joint-progress" style="display:none">
+      <div class="joint-title">🔧 Changement de joint en cours</div>
+      <div class="joint-side-badge">Côté <span id="joint-side-lbl">—</span></div>
+      <div class="joint-msg">La trappe est ouverte et la porte déverrouillée. Remplacez le joint, refermez la porte de chargement, puis appuyez sur Terminé.</div>
+      <button class="btn btn-resolve btn-full" onclick="jointDone()">✓ J'ai terminé</button>
     </div>
   </div>
 
@@ -575,28 +607,6 @@
   </div>
 </div>
 
-<!-- ── Modale changer le joint (choix du côté + service en cours) ── -->
-<div id="joint-modal" onclick="if(event.target===this)closeJointModal()">
-  <div class="log-modal-box">
-    <!-- Vue 1 : choix du côté -->
-    <div id="joint-choose">
-      <h3>Changer le joint — quel côté ?</h3>
-      <p style="font-size:.82rem;color:#555;margin:-6px 0 14px">La trappe s'ouvre partiellement et la porte se déverrouille. Le poêle doit être à l'arrêt et froid.</p>
-      <div class="log-modal-actions">
-        <button class="btn btn-tan"   onclick="jointStart('l')">Gauche</button>
-        <button class="btn btn-brown" onclick="jointStart('r')">Droite</button>
-      </div>
-    </div>
-    <!-- Vue 2 : service en cours -->
-    <div id="joint-progress" style="display:none">
-      <h3>Service en cours — côté <span id="joint-side-lbl">—</span></h3>
-      <p style="font-size:.82rem;color:#555;margin:-6px 0 14px">La trappe est ouverte et la porte déverrouillée. Remplacez le joint, refermez la porte de chargement, puis appuyez sur Terminé.</p>
-      <div class="log-modal-actions">
-        <button class="btn btn-brown" onclick="jointDone()">J'ai terminé</button>
-      </div>
-    </div>
-  </div>
-</div>
 
 <script>
 // ============================================================
@@ -934,6 +944,10 @@ function applyFull(d) {
   }
   if (d.system_active !== undefined) sysActive = !!d.system_active;
   if (d.fault !== undefined) setFault(d.fault, d.fault_side, d.fault_ready);
+  if (d.joint_active !== undefined) {
+    const _js = (d.joint_side || '').toLowerCase();
+    syncJointService(!!d.joint_active, (_js === 'right' || _js === 'r') ? 'r' : 'l');
+  }
   if (d.system_state  !== undefined) { remoteStateReceived = true; if (!isLocked('system_state')) applySystemState(d.system_state); }
   if (d.uptime !== undefined) {
     const h = Math.floor(d.uptime/3600), m = Math.floor((d.uptime%3600)/60);
@@ -1386,42 +1400,87 @@ function saveAlerts() {
 // « J'ai terminé » pour refermer la trappe (vérif. porte fermée côté firmware).
 let jointServiceActive = false;   // true entre le démarrage et « terminé »
 let jointSide = 'l';
+let jointDonePending = false;     // « Terminé » cliqué : ne pas ré-afficher la
+                                  // bannière pendant que le firmware referme la trappe
+                                  // (isJointServiceActive() reste vrai un court instant)
 
 function changerJoint() {
-  // Service déjà en cours : revenir directement à la vue « Terminé » sans
+  // Service déjà en cours : afficher directement la bannière « Terminé » sans
   // ré-appliquer le verrou froid/veille (le poêle est en pleine intervention).
   if (jointServiceActive) {
     showJointView('progress');
-    document.getElementById('joint-modal').classList.add('show');
+    showJointBanner();
     return;
   }
   if (systemState !== 'standby') {
     alert('Le poêle doit être à l\'arrêt (en veille) pour changer le joint. Arrêtez-le et laissez-le refroidir.');
     return;
   }
+  // Fail-CLOSED sur température inconnue : après un redémarrage du firmware le
+  // thermocouple n'est pas encore prêt et l'afficheur montre « —° » (parseFloat →
+  // NaN). Si on ne bloque pas ce cas, le garde « ≤ 40° » est ignoré et la trappe
+  // peut s'ouvrir à n'importe quelle température (seule la limite firmware à 100°
+  // reste). On exige donc une lecture valide ET ≤ 40°.
   const temp = parseFloat(document.getElementById('stove-temp').textContent);
-  if (!isNaN(temp) && temp > 40) {
+  if (isNaN(temp)) {
+    alert('Température du poêle inconnue pour le moment. Attendez une lecture valide (quelques secondes après la mise sous tension) avant de changer le joint.');
+    return;
+  }
+  if (temp > 40) {
     alert('Le poêle est encore chaud (' + Math.round(temp) + '°). Laissez-le refroidir sous 40° avant de changer le joint.');
     return;
   }
   showJointView('choose');
-  document.getElementById('joint-modal').classList.add('show');
+  showJointBanner();
 }
 
 function jointStart(side) {
   jointSide = side;
   jointServiceActive = true;
   publish('cmd/joint_service', side);   // firmware: entrouvre la trappe + déverrouille
-  document.getElementById('joint-side-lbl').textContent = (side === 'r' ? 'droite' : 'gauche');
+  setJointSideLabel(side);
   showJointView('progress');
+  showJointBanner();
   showToast('Ouverture de la trappe côté ' + (side === 'r' ? 'droite' : 'gauche') + '…');
 }
 
 function jointDone() {
   publish('cmd/joint_done', '1');       // firmware: vérifie porte fermée, referme la trappe
   jointServiceActive = false;
-  closeJointModal();
+  jointDonePending   = true;            // ignorer les status/full « actif » résiduels
+  closeJointBanner();
   showToast('Fermeture de la trappe…');
+}
+
+// « Annuler » n'est proposé qu'avant le démarrage (vue « choix du côté ») : aucune
+// commande n'a encore été envoyée, on referme simplement la bannière.
+function jointCancel() {
+  closeJointBanner();
+}
+
+// Reflète l'état de service du firmware (status/full → joint_active/joint_side) pour
+// que la bannière réapparaisse après un rechargement/reconnexion pendant le service.
+function syncJointService(active, side) {
+  if (active) {
+    // « Terminé » déjà cliqué : on attend que le firmware finisse de refermer ;
+    // ne pas ré-ouvrir la bannière sur l'état actif résiduel.
+    if (jointDonePending) return;
+    jointServiceActive = true;
+    if (side) { jointSide = side; setJointSideLabel(side); }
+    showJointView('progress');
+    showJointBanner();
+  } else {
+    // Le firmware a refermé la trappe (fin du service) — masquer la bannière.
+    jointDonePending = false;
+    if (jointServiceActive) {
+      jointServiceActive = false;
+      closeJointBanner();
+    }
+  }
+}
+
+function setJointSideLabel(side) {
+  document.getElementById('joint-side-lbl').textContent = (side === 'r' ? 'droite' : 'gauche');
 }
 
 function showJointView(which) {
@@ -1429,8 +1488,12 @@ function showJointView(which) {
   document.getElementById('joint-progress').style.display = (which === 'progress') ? '' : 'none';
 }
 
-function closeJointModal() {
-  document.getElementById('joint-modal').classList.remove('show');
+function showJointBanner() {
+  document.getElementById('joint-banner').classList.add('show');
+}
+
+function closeJointBanner() {
+  document.getElementById('joint-banner').classList.remove('show');
 }
 
 // ============================================================
