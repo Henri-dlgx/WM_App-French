@@ -656,6 +656,7 @@ let schedWeek        = Array(12).fill(20);  // programmation jours de semaine (l
 let schedWeekend     = Array(12).fill(20);  // programmation week-end (sam–dim)
 let schedEditMode    = 'week';              // courbe en cours d'édition : 'week' | 'weekend'
 let schedEnabled     = false;
+let roomManualOverride = false;             // l'utilisateur a réglé la température à la main → ignore la programmation jusqu'au prochain créneau
 let schedDrag        = null;
 let schedSlotTimer   = null;
 let lastSchedSlot    = -1;
@@ -678,10 +679,40 @@ let bleRoomTempOk      = false;  // true quand le capteur BLE a une lecture vali
 let lastKnownBleTemp   = null;   // dernière lecture BLE valide — affichée si capteur hors ligne
 
 // ── Verrou commande en attente — évite le rebond MQTT ──
+// Deux usages :
+//   lockField(f)        → verrou minuté simple : on ignore les échos pendant
+//                         PENDING_TTL ms (system_state, silence_mode).
+//   lockField(f, val)   → verrou « optimiste » : on affiche `val` tout de suite et
+//                         on ignore les échos JUSQU'À ce que le firmware confirme
+//                         cette valeur — puis on libère immédiatement (room_temp,
+//                         log_l, log_r). PENDING_TTL n'est plus qu'un filet de
+//                         sécurité si le poêle ne confirme jamais.
 const pendingCmds = {};
-const PENDING_TTL = 4000; // ms — ignore les mises à jour MQTT pendant ce délai après une commande
-function lockField(f) { pendingCmds[f] = Date.now() + PENDING_TTL; }
-function isLocked(f)  { return !!(pendingCmds[f] && Date.now() < pendingCmds[f]); }
+const PENDING_TTL = 6000; // ms — filet de sécurité si le poêle ne confirme jamais
+function lockField(f, val) {
+  pendingCmds[f] = { val: (val === undefined ? null : String(val)), expire: Date.now() + PENDING_TTL };
+}
+function isLocked(f) {
+  const p = pendingCmds[f];
+  return !!(p && Date.now() < p.expire);
+}
+// Champs à valeur (room_temp, log_l, log_r) : faut-il ignorer CET écho ?
+//   • aucune commande en attente            → non : on accepte la vérité du firmware
+//   • l'écho == ce qu'on a envoyé           → CONFIRMÉ : on libère et on accepte
+//   • délai dépassé sans confirmation        → ABANDON : on libère, on laisse la vérité
+//                                              du firmware revenir et on prévient l'utilisateur
+//   • écho périmé, délai non dépassé         → oui : on garde la valeur optimiste affichée
+function ignoreEcho(f, incoming) {
+  const p = pendingCmds[f];
+  if (!p || p.val === null) return false;
+  if (String(incoming) === p.val) { delete pendingCmds[f]; return false; }   // confirmé
+  if (Date.now() >= p.expire) {                                              // abandon
+    delete pendingCmds[f];
+    showToast('Réglage non confirmé par le poêle — réessayez');
+    return false;
+  }
+  return true;   // écho périmé → on conserve l'affichage optimiste
+}
 
 // ============================================================
 // INIT
@@ -771,6 +802,7 @@ function connect() {
         }
         if (slot !== lastSchedSlot || dayChanged) {
           lastSchedSlot = slot;
+          roomManualOverride = false;   // nouveau créneau → la programmation reprend la main
           applyScheduleSlot();
         }
       }, 60000);
@@ -869,6 +901,7 @@ function onMessage(topic, payloadBuf) {
     updateBleRoomTemp(); return;
   }
   if (sub === 'status/log_level_l') {
+    if (ignoreEcho('log_l', parseInt(payload) || 0)) return;
     const prevL = logL;
     logL = parseInt(payload) || 0;
     renderBars('left', logL);
@@ -878,6 +911,7 @@ function onMessage(topic, payloadBuf) {
     calcBurnTime(); return;
   }
   if (sub === 'status/log_level_r') {
+    if (ignoreEcho('log_r', parseInt(payload) || 0)) return;
     const prevR = logR;
     logR = parseInt(payload) || 0;
     renderBars('right', logR);
@@ -922,19 +956,19 @@ function applyFull(d) {
     bleRoomTemp   = bleRoomTempOk ? val : null;
     updateBleRoomTemp();
   }
-  if (d.log_l !== undefined) {
+  if (d.log_l !== undefined && !ignoreEcho('log_l', parseInt(d.log_l) || 0)) {
     logL = parseInt(d.log_l) || 0;
     renderBars('left', logL);
     document.getElementById('count-left').textContent = logL + ' bûches';
   }
-  if (d.log_r !== undefined) {
+  if (d.log_r !== undefined && !ignoreEcho('log_r', parseInt(d.log_r) || 0)) {
     logR = parseInt(d.log_r) || 0;
     renderBars('right', logR);
     document.getElementById('count-right').textContent = logR + ' bûches';
   }
   // Synchronise la température souhaitée depuis l'écho du firmware — garde tous les clients en phase.
   // Ignoré pendant 4 s après qu'un utilisateur appuie sur +/- pour éviter le rebond.
-  if (d.room_setpoint !== undefined && !isLocked('room_temp')) {
+  if (d.room_setpoint !== undefined && !ignoreEcho('room_temp', parseInt(d.room_setpoint))) {
     const r = parseInt(d.room_setpoint);
     if (r >= 18 && r <= 23 && r !== roomTemp) {
       roomTemp = r;
@@ -1223,7 +1257,8 @@ function adjustRoom(delta) {
   roomTemp = Math.min(23, Math.max(18, (isNaN(roomTemp) ? 20 : roomTemp) + delta));
   document.getElementById('room-val').textContent = tempToLabel(roomTemp);
   localStorage.setItem('woodmood_room_temp', roomTemp);
-  lockField('room_temp');   // empêche l'écho MQTT d'écraser immédiatement après une pression
+  roomManualOverride = true; // réglage manuel → la programmation ne réécrase plus jusqu'au prochain créneau
+  lockField('room_temp', roomTemp); // garde l'affichage jusqu'à confirmation du firmware
   publish('cmd/room_temp', roomTemp);
 }
 
@@ -1265,6 +1300,7 @@ function closeLogModal() {
 function applyLogCount(side, n) {
   n = Math.min(6, Math.max(0, n || 0));
   if (side === 'l') logL = n; else logR = n;
+  lockField(side === 'l' ? 'log_l' : 'log_r', n); // garde le compte affiché jusqu'à confirmation
   publish('cmd/log_level_' + mapSide(side), n);
   renderBars(side === 'l' ? 'left' : 'right', n);
   document.getElementById(side === 'l' ? 'count-left' : 'count-right').textContent = n + ' bûches';
@@ -1632,18 +1668,18 @@ function setSchedEnabled(on) {
   localStorage.setItem(LS_SCHED_EN, on ? '1' : '0');
   document.getElementById('sched-badge').classList.toggle('active', on);
   updateSchedStatus();
-  if (on) applyScheduleSlot();
+  if (on) { roomManualOverride = false; applyScheduleSlot(); }
 }
 
 function applyScheduleSlot() {
-  if (!schedEnabled || !client || !client.connected) return;
+  if (!schedEnabled || roomManualOverride || !client || !client.connected) return;
   const slot = Math.floor(new Date().getHours() / 2);
   const t = activeSched()[slot];
   if (t < SCHED_TMIN || t > SCHED_TMAX) return;
   roomTemp = t;
   document.getElementById('room-val').textContent = tempToLabel(roomTemp);
   localStorage.setItem('woodmood_room_temp', roomTemp);
-  lockField('room_temp');
+  lockField('room_temp', roomTemp);
   publish('cmd/room_temp', roomTemp);
 }
 
@@ -1849,6 +1885,7 @@ function saveSchedule() {
   updateSchedStatus();
   if (!client || !client.connected) { showToast('Enregistré localement (non connecté)'); return; }
   client.publish(prefix + '/schedule', schedPayload(), { qos: 1, retain: true });
+  roomManualOverride = false;   // l'utilisateur vient d'enregistrer la programmation → on l'applique
   applyScheduleSlot();
   showToast(schedEnabled ? 'Programmation enregistrée et appliquée' : 'Programmation enregistrée (activez pour l\'appliquer)');
 }
