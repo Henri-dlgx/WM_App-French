@@ -885,21 +885,17 @@ function onMessage(topic, payloadBuf) {
   }
 
   if (sub === 'status/full')       { try { applyFull(JSON.parse(payload)); } catch(e){} return; }
-  if (sub === 'status/fault')      { setFault(payload === '1'); return; }
   if (sub === 'status/fault_msg')  { setFaultMsg(payload);      return; }
   if (sub === 'status/fault_side') { const _s = payload.toLowerCase(); faultSide = (_s === 'right' || _s === 'r') ? 'r' : 'l'; if (faultActive) renderFaultPhase(); return; }
 
-  if (sub === 'status/temperature') {
-    stoveTemp = parseFloat(payload);
-    document.getElementById('stove-temp').textContent = payload + '°';
-    updateSystemState(); return;
-  }
-  if (sub === 'status/room_temp') {
-    const val = parseFloat(payload);
-    bleRoomTempOk = !isNaN(val) && val > -998;
-    bleRoomTemp   = bleRoomTempOk ? val : null;
-    updateBleRoomTemp(); return;
-  }
+  // status/temperature, status/room_temp, status/fault, status/system_state et
+  // status/heap étaient publiés chaque seconde en plus de status/full — pure
+  // duplication qui ralentissait la boucle MQTT du firmware et donc le temps de
+  // réaction aux commandes. Le firmware n'envoie désormais que status/full (voir
+  // MQTTHandler.cpp publishStatus()) ; applyFull() ci-dessous lit déjà chacun de
+  // ces champs. status/log_level_l/r et status/fault_msg reçoivent toujours une
+  // publication ponctuelle en dehors du cycle 1 Hz (écho immédiat après une
+  // insertion / raison de défaut instantanée), ces handlers restent donc.
   if (sub === 'status/log_level_l') {
     if (ignoreEcho('log_l', parseInt(payload) || 0)) return;
     const prevL = logL;
@@ -920,22 +916,9 @@ function onMessage(topic, payloadBuf) {
     else if (logR === 1 && prevR !== 1) triggerPush('low-R', '🪵 WoodMood — Cassette droite basse', 'Il reste seulement 1 bûche à droite');
     calcBurnTime(); return;
   }
-  if (sub === 'status/system_state') {
-    remoteStateReceived = true;
-    if (!isLocked('system_state')) applySystemState(payload);
-    return;
-  }
   if (sub === 'status/maint_joint')  { document.getElementById('joint-days').textContent = payload + ' jours'; return; }
   if (sub === 'status/maint_ramon')  { document.getElementById('ramon-days').textContent = payload + ' jours depuis le dernier'; return; }
   if (sub === 'status/maint_seal')   { document.getElementById('seal-days').textContent  = payload + ' jours'; return; }
-
-  if (sub === 'status/heap') {
-    try {
-      const h = JSON.parse(payload);
-      if (h.free !== undefined) applyHeap(h.free, h.min_free, h.max_alloc);
-    } catch(e) {}
-    return;
-  }
 }
 
 // ============================================================
@@ -978,6 +961,7 @@ function applyFull(d) {
   }
   if (d.system_active !== undefined) sysActive = !!d.system_active;
   if (d.fault !== undefined) setFault(d.fault, d.fault_side, d.fault_ready);
+  if (d.fault_msg) setFaultMsg(d.fault_msg);
   if (d.joint_active !== undefined) {
     const _js = (d.joint_side || '').toLowerCase();
     syncJointService(!!d.joint_active, (_js === 'right' || _js === 'r') ? 'r' : 'l');
