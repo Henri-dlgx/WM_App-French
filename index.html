@@ -781,8 +781,15 @@ function connect() {
     document.getElementById('offline-overlay').classList.remove('show');
     client.subscribe(prefix + '/status/#');
     client.subscribe(prefix + '/schedule');
-    if (schedWeek.some(t => t !== 20) || schedWeekend.some(t => t !== 20))
-      client.publish(prefix + '/schedule', schedPayload(), { qos:1, retain:true });
+    // NOTE : ni l'état activé/désactivé ni la courbe ne sont re-publiés ici. Le
+    // firmware persiste la courbe et _scheduleEnabled en NVS (survit aux
+    // redémarrages) et c'est la seule source de vérité, partagée entre tous les
+    // téléphones connectés via /schedule (retenu) et le champ sched_enabled de
+    // status/full (voir applyFull()). Re-publier l'état local de CETTE app à
+    // chaque reconnexion permettait à un second téléphone (état/courbe locale
+    // périmée ou par défaut) d'écraser silencieusement ce que l'autre venait de
+    // régler. saveSchedule() reste le seul point qui publie la courbe, en
+    // réponse à une action explicite de l'utilisateur.
     // Appliquer le créneau de programmation actuel à la (re)connexion
     lastSchedSlot = Math.floor(new Date().getHours() / 2);
     lastDayType   = isWeekendDay() ? 'weekend' : 'week';
@@ -996,6 +1003,20 @@ function applyFull(d) {
   if (d.maint_joint !== undefined) document.getElementById('joint-days').textContent = d.maint_joint + ' jours';
   if (d.maint_ramon !== undefined) document.getElementById('ramon-days').textContent = d.maint_ramon + ' jours depuis le dernier';
   if (d.maint_seal  !== undefined) document.getElementById('seal-days').textContent  = d.maint_seal  + ' jours';
+  // Récupère l'état activé/désactivé persisté par le firmware pour que tous les
+  // téléphones connectés convergent vers lui, plutôt que chaque app ne fasse
+  // confiance qu'à son propre bouton local.
+  if (d.sched_enabled !== undefined && !isLocked('sched_enabled')) {
+    const en = !!d.sched_enabled;
+    if (en !== schedEnabled) {
+      schedEnabled = en;
+      localStorage.setItem(LS_SCHED_EN, en ? '1' : '0');
+      document.getElementById('sched-badge').classList.toggle('active', en);
+      const togEl = document.getElementById('tog-sched-enable');
+      if (togEl) togEl.checked = en;
+      updateSchedStatus();
+    }
+  }
 
   applyTechState(d);
   calcBurnTime();
@@ -1022,13 +1043,13 @@ function updateBleRoomTemp() {
   if (!el) return;
   if (bleRoomTempOk && bleRoomTemp !== null) {
     lastKnownBleTemp = bleRoomTemp;
-    el.textContent      = bleRoomTemp.toFixed(1) + '°';
+    el.textContent      = Math.round(bleRoomTemp) + '°';
     el.style.fontStyle  = 'normal';
     el.style.opacity    = '1';
     lbl.textContent     = 'Température actuelle';
     lbl.style.fontStyle = 'normal';
   } else if (lastKnownBleTemp !== null) {
-    el.textContent      = lastKnownBleTemp.toFixed(1) + '°';
+    el.textContent      = Math.round(lastKnownBleTemp) + '°';
     el.style.fontStyle  = 'italic';
     el.style.opacity    = '0.65';
     lbl.textContent     = 'Dernière mesure';
@@ -1640,6 +1661,7 @@ function updateSchedTabs() {
 
 function setSchedEnabled(on) {
   schedEnabled = on;
+  lockField('sched_enabled');
   localStorage.setItem(LS_SCHED_EN, on ? '1' : '0');
   document.getElementById('sched-badge').classList.toggle('active', on);
   updateSchedStatus();
