@@ -524,6 +524,19 @@
 
       <div class="divider"></div>
 
+      <!-- Capteur de température (Bluetooth) -->
+      <div>
+        <div class="settings-section">Capteur de température (Bluetooth)</div>
+        <div class="gap-col">
+          <div style="font-size:.82rem;opacity:.75;margin-bottom:4px">Collez l'adresse MAC et la clé de liaison Xiaomi du capteur (récupérées via l'extracteur de tokens Xiaomi Cloud) pour connecter un thermomètre en firmware d'origine.</div>
+          <input type="text" id="room-sensor-cfg" placeholder="MAC + clé (ex: A4:C1:38:B7:C0:40:af3dbf6ccf5cdf967a415b5b986ca8ee)" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:.78rem"/>
+          <button class="btn btn-brown btn-sm btn-full" onclick="saveRoomSensorConfig()">Connecter le capteur</button>
+          <div style="font-size:.78rem;color:#8B4513;margin-top:4px;text-align:center">Capteur actuel : <span id="room-sensor-mac-val">—</span></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
       <!-- [DISABLED] Paramètres de la maison — gérés dans l'app
       <div>
         <div class="settings-section">Paramètres de la maison</div>
@@ -656,6 +669,7 @@ let schedWeek        = Array(12).fill(20);  // programmation jours de semaine (l
 let schedWeekend     = Array(12).fill(20);  // programmation week-end (sam–dim)
 let schedEditMode    = 'week';              // courbe en cours d'édition : 'week' | 'weekend'
 let schedEnabled     = false;
+let roomManualOverride = false;             // l'utilisateur a réglé la température à la main → ignore la programmation jusqu'au prochain créneau
 let schedDrag        = null;
 let schedSlotTimer   = null;
 let lastSchedSlot    = -1;
@@ -781,8 +795,18 @@ function connect() {
     document.getElementById('offline-overlay').classList.remove('show');
     client.subscribe(prefix + '/status/#');
     client.subscribe(prefix + '/schedule');
-    if (schedWeek.some(t => t !== 20) || schedWeekend.some(t => t !== 20))
+    // Synchroniser l'état activé/désactivé avec le firmware à chaque (re)connexion —
+    // c'est ce qui active/désactive réellement la programmation ; sans ça le bouton
+    // ne changeait que l'interface de l'app, et le firmware continuait de suivre
+    // la dernière programmation retenue par le broker.
+    client.publish(prefix + '/cmd/schedule_en', schedEnabled ? '1' : '0', { qos:1 });
+    if (schedEnabled && (schedWeek.some(t => t !== 20) || schedWeekend.some(t => t !== 20)))
       client.publish(prefix + '/schedule', schedPayload(), { qos:1, retain:true });
+    else if (!schedEnabled)
+      // Programmation désactivée : purger toute courbe retenue périmée sur le broker
+      // (p. ex. désactivée hors ligne, ou laissée par une ancienne version de l'app)
+      // pour qu'une reconnexion du firmware ne puisse jamais la ré-appliquer.
+      client.publish(prefix + '/schedule', '', { qos:1, retain:true });
     // Appliquer le créneau de programmation actuel à la (re)connexion
     lastSchedSlot = Math.floor(new Date().getHours() / 2);
     lastDayType   = isWeekendDay() ? 'weekend' : 'week';
@@ -801,6 +825,7 @@ function connect() {
         }
         if (slot !== lastSchedSlot || dayChanged) {
           lastSchedSlot = slot;
+          roomManualOverride = false;   // nouveau créneau → la programmation reprend la main
           applyScheduleSlot();
         }
       }, 60000);
@@ -883,21 +908,17 @@ function onMessage(topic, payloadBuf) {
   }
 
   if (sub === 'status/full')       { try { applyFull(JSON.parse(payload)); } catch(e){} return; }
-  if (sub === 'status/fault')      { setFault(payload === '1'); return; }
   if (sub === 'status/fault_msg')  { setFaultMsg(payload);      return; }
   if (sub === 'status/fault_side') { const _s = payload.toLowerCase(); faultSide = (_s === 'right' || _s === 'r') ? 'r' : 'l'; if (faultActive) renderFaultPhase(); return; }
 
-  if (sub === 'status/temperature') {
-    stoveTemp = parseFloat(payload);
-    document.getElementById('stove-temp').textContent = payload + '°';
-    updateSystemState(); return;
-  }
-  if (sub === 'status/room_temp') {
-    const val = parseFloat(payload);
-    bleRoomTempOk = !isNaN(val) && val > -998;
-    bleRoomTemp   = bleRoomTempOk ? val : null;
-    updateBleRoomTemp(); return;
-  }
+  // status/temperature, status/room_temp, status/fault, status/system_state et
+  // status/heap étaient publiés chaque seconde en plus de status/full — pure
+  // duplication qui ralentissait la boucle MQTT du firmware et donc le temps de
+  // réaction aux commandes. Le firmware n'envoie désormais que status/full (voir
+  // MQTTHandler.cpp publishStatus()) ; applyFull() ci-dessous lit déjà chacun de
+  // ces champs. status/log_level_l/r et status/fault_msg reçoivent toujours une
+  // publication ponctuelle en dehors du cycle 1 Hz (écho immédiat après une
+  // insertion / raison de défaut instantanée), ces handlers restent donc.
   if (sub === 'status/log_level_l') {
     if (ignoreEcho('log_l', parseInt(payload) || 0)) return;
     const prevL = logL;
@@ -918,22 +939,9 @@ function onMessage(topic, payloadBuf) {
     else if (logR === 1 && prevR !== 1) triggerPush('low-R', '🪵 WoodMood — Cassette droite basse', 'Il reste seulement 1 bûche à droite');
     calcBurnTime(); return;
   }
-  if (sub === 'status/system_state') {
-    remoteStateReceived = true;
-    if (!isLocked('system_state')) applySystemState(payload);
-    return;
-  }
   if (sub === 'status/maint_joint')  { document.getElementById('joint-days').textContent = payload + ' jours'; return; }
   if (sub === 'status/maint_ramon')  { document.getElementById('ramon-days').textContent = payload + ' jours depuis le dernier'; return; }
   if (sub === 'status/maint_seal')   { document.getElementById('seal-days').textContent  = payload + ' jours'; return; }
-
-  if (sub === 'status/heap') {
-    try {
-      const h = JSON.parse(payload);
-      if (h.free !== undefined) applyHeap(h.free, h.min_free, h.max_alloc);
-    } catch(e) {}
-    return;
-  }
 }
 
 // ============================================================
@@ -954,6 +962,7 @@ function applyFull(d) {
     bleRoomTemp   = bleRoomTempOk ? val : null;
     updateBleRoomTemp();
   }
+  if (d.room_sensor_mac !== undefined) applyRoomSensorMac(d.room_sensor_mac);
   if (d.log_l !== undefined && !ignoreEcho('log_l', parseInt(d.log_l) || 0)) {
     logL = parseInt(d.log_l) || 0;
     renderBars('left', logL);
@@ -976,10 +985,13 @@ function applyFull(d) {
   }
   if (d.system_active !== undefined) sysActive = !!d.system_active;
   if (d.fault !== undefined) setFault(d.fault, d.fault_side, d.fault_ready);
+  if (d.fault_msg) setFaultMsg(d.fault_msg);
   if (d.joint_active !== undefined) {
     const _js = (d.joint_side || '').toLowerCase();
     syncJointService(!!d.joint_active, (_js === 'right' || _js === 'r') ? 'r' : 'l');
   }
+  if (d.door_main !== undefined) doorMainOpen = !!d.door_main;
+  if (d.door_load !== undefined) doorLoadOpen = !!d.door_load;
   if (d.system_state  !== undefined) { remoteStateReceived = true; if (!isLocked('system_state')) applySystemState(d.system_state); }
   if (d.uptime !== undefined) {
     const h = Math.floor(d.uptime/3600), m = Math.floor((d.uptime%3600)/60);
@@ -1253,6 +1265,7 @@ function adjustRoom(delta) {
   roomTemp = Math.min(23, Math.max(18, (isNaN(roomTemp) ? 20 : roomTemp) + delta));
   document.getElementById('room-val').textContent = tempToLabel(roomTemp);
   localStorage.setItem('woodmood_room_temp', roomTemp);
+  roomManualOverride = true; // réglage manuel → la programmation ne réécrase plus jusqu'au prochain créneau
   lockField('room_temp', roomTemp); // garde l'affichage jusqu'à confirmation du firmware
   publish('cmd/room_temp', roomTemp);
 }
@@ -1436,6 +1449,12 @@ let jointSide = 'l';
 let jointDonePending = false;     // « Terminé » cliqué : ne pas ré-afficher la
                                   // bannière pendant que le firmware referme la trappe
                                   // (isJointServiceActive() reste vrai un court instant)
+let jointFwConfirmed = false;     // le firmware a confirmé le service actif (joint_active=true)
+                                  // au moins une fois : tant que non confirmé, on ignore un
+                                  // status/full « inactif » résiduel envoyé juste avant que le
+                                  // firmware ne traite la commande (sinon la bannière clignote)
+let doorMainOpen = false;         // interverrouillages de porte (status/full) : la trappe
+let doorLoadOpen = false;         // est commandée par MOSFET et ne s'actionne pas porte ouverte
 
 function changerJoint() {
   // Service déjà en cours : afficher directement la bannière « Terminé » sans
@@ -1451,16 +1470,24 @@ function changerJoint() {
   }
   // Fail-CLOSED sur température inconnue : après un redémarrage du firmware le
   // thermocouple n'est pas encore prêt et l'afficheur montre « —° » (parseFloat →
-  // NaN). Si on ne bloque pas ce cas, le garde « ≤ 40° » est ignoré et la trappe
+  // NaN). Si on ne bloque pas ce cas, le garde « ≤ 70° » est ignoré et la trappe
   // peut s'ouvrir à n'importe quelle température (seule la limite firmware à 100°
-  // reste). On exige donc une lecture valide ET ≤ 40°.
+  // reste). On exige donc une lecture valide ET ≤ 70°.
   const temp = parseFloat(document.getElementById('stove-temp').textContent);
   if (isNaN(temp)) {
     alert('Température du poêle inconnue pour le moment. Attendez une lecture valide (quelques secondes après la mise sous tension) avant de changer le joint.');
     return;
   }
-  if (temp > 40) {
-    alert('Le poêle est encore chaud (' + Math.round(temp) + '°). Laissez-le refroidir sous 40° avant de changer le joint.');
+  if (temp > 70) {
+    alert('Le poêle est encore chaud (' + Math.round(temp) + '°). Laissez-le refroidir sous 70° avant de changer le joint.');
+    return;
+  }
+  // La trappe est commandée par MOSFET via les interverrouillages de porte : si une
+  // porte est ouverte, elle est inhibée et ne s'actionnera pas — le firmware croirait
+  // alors la trappe ouverte (« faux positif »). On exige toutes les portes fermées.
+  if (doorMainOpen || doorLoadOpen) {
+    alert('Une porte est ouverte (' + (doorMainOpen ? 'porte principale' : 'porte de chargement')
+          + '). Fermez toutes les portes avant de changer le joint — la trappe ne s\'ouvre pas porte ouverte.');
     return;
   }
   showJointView('choose');
@@ -1470,6 +1497,7 @@ function changerJoint() {
 function jointStart(side) {
   jointSide = side;
   jointServiceActive = true;
+  jointFwConfirmed   = false;           // attendre la confirmation du firmware
   publish('cmd/joint_service', side);   // firmware: entrouvre la trappe + déverrouille
   setJointSideLabel(side);
   showJointView('progress');
@@ -1498,15 +1526,20 @@ function syncJointService(active, side) {
     // « Terminé » déjà cliqué : on attend que le firmware finisse de refermer ;
     // ne pas ré-ouvrir la bannière sur l'état actif résiduel.
     if (jointDonePending) return;
+    jointFwConfirmed   = true;   // le firmware confirme le service en cours
     jointServiceActive = true;
     if (side) { jointSide = side; setJointSideLabel(side); }
     showJointView('progress');
     showJointBanner();
   } else {
-    // Le firmware a refermé la trappe (fin du service) — masquer la bannière.
+    // Service inactif côté firmware. On ne ferme la bannière QUE si le firmware
+    // avait confirmé le service au moins une fois — sinon c'est un status/full
+    // « inactif » résiduel, émis juste avant que le firmware ne traite la commande,
+    // et fermer ici ferait clignoter la bannière fraîchement ouverte.
     jointDonePending = false;
-    if (jointServiceActive) {
+    if (jointServiceActive && jointFwConfirmed) {
       jointServiceActive = false;
+      jointFwConfirmed   = false;
       closeJointBanner();
     }
   }
@@ -1545,6 +1578,26 @@ function saveHouseParamsLocal() {
     size: document.getElementById('house-size').value,
     insulation
   }));
+}
+
+// ============================================================
+// PARAMÈTRES — CAPTEUR DE TEMPÉRATURE (BLUETOOTH)
+// ============================================================
+function saveRoomSensorConfig() {
+  const raw = document.getElementById('room-sensor-cfg').value;
+  const hex = (raw || '').replace(/[^0-9a-fA-F]/g, '');
+  if (hex.length !== 44) {
+    showToast('Format invalide — MAC (12) + clé (32) = 44 caractères hexadécimaux');
+    return;
+  }
+  publish('cmd/room_sensor_cfg', hex);
+  document.getElementById('room-sensor-cfg').value = '';
+  showToast('Capteur envoyé — vérification en cours…');
+}
+
+function applyRoomSensorMac(mac) {
+  const el = document.getElementById('room-sensor-mac-val');
+  if (el) el.textContent = mac ? mac : 'Aucun capteur configuré';
 }
 
 function saveHouseParams() {
@@ -1643,11 +1696,21 @@ function setSchedEnabled(on) {
   localStorage.setItem(LS_SCHED_EN, on ? '1' : '0');
   document.getElementById('sched-badge').classList.toggle('active', on);
   updateSchedStatus();
-  if (on) applyScheduleSlot();
+  if (client && client.connected) {
+    client.publish(prefix + '/cmd/schedule_en', on ? '1' : '0', { qos:1 });
+    if (on) {
+      client.publish(prefix + '/schedule', schedPayload(), { qos:1, retain:true });
+    } else {
+      // Efface la programmation retenue pour qu'un redémarrage du firmware ne
+      // se réactive pas tout seul à partir d'un message retenu périmé.
+      client.publish(prefix + '/schedule', '', { qos:1, retain:true });
+    }
+  }
+  if (on) { roomManualOverride = false; applyScheduleSlot(); }
 }
 
 function applyScheduleSlot() {
-  if (!schedEnabled || !client || !client.connected) return;
+  if (!schedEnabled || roomManualOverride || !client || !client.connected) return;
   const slot = Math.floor(new Date().getHours() / 2);
   const t = activeSched()[slot];
   if (t < SCHED_TMIN || t > SCHED_TMAX) return;
@@ -1859,8 +1922,11 @@ function saveSchedule() {
   persistSched();
   updateSchedStatus();
   if (!client || !client.connected) { showToast('Enregistré localement (non connecté)'); return; }
-  client.publish(prefix + '/schedule', schedPayload(), { qos: 1, retain: true });
-  applyScheduleSlot();
+  if (schedEnabled) {
+    client.publish(prefix + '/schedule', schedPayload(), { qos: 1, retain: true });
+    roomManualOverride = false;   // l'utilisateur vient d'enregistrer la programmation → on l'applique
+    applyScheduleSlot();
+  }
   showToast(schedEnabled ? 'Programmation enregistrée et appliquée' : 'Programmation enregistrée (activez pour l\'appliquer)');
 }
 
