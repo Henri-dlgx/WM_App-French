@@ -524,6 +524,19 @@
 
       <div class="divider"></div>
 
+      <!-- Capteur de température (Bluetooth) -->
+      <div>
+        <div class="settings-section">Capteur de température (Bluetooth)</div>
+        <div class="gap-col">
+          <div style="font-size:.82rem;opacity:.75;margin-bottom:4px">Collez l'adresse MAC et la clé de liaison Xiaomi du capteur (récupérées via l'extracteur de tokens Xiaomi Cloud) pour connecter un thermomètre en firmware d'origine.</div>
+          <input type="text" id="room-sensor-cfg" placeholder="MAC + clé (ex: A4:C1:38:B7:C0:40:af3dbf6ccf5cdf967a415b5b986ca8ee)" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:.78rem"/>
+          <button class="btn btn-brown btn-sm btn-full" onclick="saveRoomSensorConfig()">Connecter le capteur</button>
+          <div style="font-size:.78rem;color:#8B4513;margin-top:4px;text-align:center">Capteur actuel : <span id="room-sensor-mac-val">—</span></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
       <!-- [DISABLED] Paramètres de la maison — gérés dans l'app
       <div>
         <div class="settings-section">Paramètres de la maison</div>
@@ -782,8 +795,18 @@ function connect() {
     document.getElementById('offline-overlay').classList.remove('show');
     client.subscribe(prefix + '/status/#');
     client.subscribe(prefix + '/schedule');
-    if (schedWeek.some(t => t !== 20) || schedWeekend.some(t => t !== 20))
+    // Synchroniser l'état activé/désactivé avec le firmware à chaque (re)connexion —
+    // c'est ce qui active/désactive réellement la programmation ; sans ça le bouton
+    // ne changeait que l'interface de l'app, et le firmware continuait de suivre
+    // la dernière programmation retenue par le broker.
+    client.publish(prefix + '/cmd/schedule_en', schedEnabled ? '1' : '0', { qos:1 });
+    if (schedEnabled && (schedWeek.some(t => t !== 20) || schedWeekend.some(t => t !== 20)))
       client.publish(prefix + '/schedule', schedPayload(), { qos:1, retain:true });
+    else if (!schedEnabled)
+      // Programmation désactivée : purger toute courbe retenue périmée sur le broker
+      // (p. ex. désactivée hors ligne, ou laissée par une ancienne version de l'app)
+      // pour qu'une reconnexion du firmware ne puisse jamais la ré-appliquer.
+      client.publish(prefix + '/schedule', '', { qos:1, retain:true });
     // Appliquer le créneau de programmation actuel à la (re)connexion
     lastSchedSlot = Math.floor(new Date().getHours() / 2);
     lastDayType   = isWeekendDay() ? 'weekend' : 'week';
@@ -939,6 +962,7 @@ function applyFull(d) {
     bleRoomTemp   = bleRoomTempOk ? val : null;
     updateBleRoomTemp();
   }
+  if (d.room_sensor_mac !== undefined) applyRoomSensorMac(d.room_sensor_mac);
   if (d.log_l !== undefined && !ignoreEcho('log_l', parseInt(d.log_l) || 0)) {
     logL = parseInt(d.log_l) || 0;
     renderBars('left', logL);
@@ -1556,6 +1580,26 @@ function saveHouseParamsLocal() {
   }));
 }
 
+// ============================================================
+// PARAMÈTRES — CAPTEUR DE TEMPÉRATURE (BLUETOOTH)
+// ============================================================
+function saveRoomSensorConfig() {
+  const raw = document.getElementById('room-sensor-cfg').value;
+  const hex = (raw || '').replace(/[^0-9a-fA-F]/g, '');
+  if (hex.length !== 44) {
+    showToast('Format invalide — MAC (12) + clé (32) = 44 caractères hexadécimaux');
+    return;
+  }
+  publish('cmd/room_sensor_cfg', hex);
+  document.getElementById('room-sensor-cfg').value = '';
+  showToast('Capteur envoyé — vérification en cours…');
+}
+
+function applyRoomSensorMac(mac) {
+  const el = document.getElementById('room-sensor-mac-val');
+  if (el) el.textContent = mac ? mac : 'Aucun capteur configuré';
+}
+
 function saveHouseParams() {
   saveHouseParamsLocal();
   publish('cmd/house_params', JSON.stringify({
@@ -1652,6 +1696,16 @@ function setSchedEnabled(on) {
   localStorage.setItem(LS_SCHED_EN, on ? '1' : '0');
   document.getElementById('sched-badge').classList.toggle('active', on);
   updateSchedStatus();
+  if (client && client.connected) {
+    client.publish(prefix + '/cmd/schedule_en', on ? '1' : '0', { qos:1 });
+    if (on) {
+      client.publish(prefix + '/schedule', schedPayload(), { qos:1, retain:true });
+    } else {
+      // Efface la programmation retenue pour qu'un redémarrage du firmware ne
+      // se réactive pas tout seul à partir d'un message retenu périmé.
+      client.publish(prefix + '/schedule', '', { qos:1, retain:true });
+    }
+  }
   if (on) { roomManualOverride = false; applyScheduleSlot(); }
 }
 
@@ -1868,9 +1922,11 @@ function saveSchedule() {
   persistSched();
   updateSchedStatus();
   if (!client || !client.connected) { showToast('Enregistré localement (non connecté)'); return; }
-  client.publish(prefix + '/schedule', schedPayload(), { qos: 1, retain: true });
-  roomManualOverride = false;   // l'utilisateur vient d'enregistrer la programmation → on l'applique
-  applyScheduleSlot();
+  if (schedEnabled) {
+    client.publish(prefix + '/schedule', schedPayload(), { qos: 1, retain: true });
+    roomManualOverride = false;   // l'utilisateur vient d'enregistrer la programmation → on l'applique
+    applyScheduleSlot();
+  }
   showToast(schedEnabled ? 'Programmation enregistrée et appliquée' : 'Programmation enregistrée (activez pour l\'appliquer)');
 }
 
