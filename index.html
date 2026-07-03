@@ -795,18 +795,12 @@ function connect() {
     document.getElementById('offline-overlay').classList.remove('show');
     client.subscribe(prefix + '/status/#');
     client.subscribe(prefix + '/schedule');
-    // Synchroniser l'état activé/désactivé avec le firmware à chaque (re)connexion —
-    // c'est ce qui active/désactive réellement la programmation ; sans ça le bouton
-    // ne changeait que l'interface de l'app, et le firmware continuait de suivre
-    // la dernière programmation retenue par le broker.
-    client.publish(prefix + '/cmd/schedule_en', schedEnabled ? '1' : '0', { qos:1 });
-    if (schedEnabled && (schedWeek.some(t => t !== 20) || schedWeekend.some(t => t !== 20)))
-      client.publish(prefix + '/schedule', schedPayload(), { qos:1, retain:true });
-    else if (!schedEnabled)
-      // Programmation désactivée : purger toute courbe retenue périmée sur le broker
-      // (p. ex. désactivée hors ligne, ou laissée par une ancienne version de l'app)
-      // pour qu'une reconnexion du firmware ne puisse jamais la ré-appliquer.
-      client.publish(prefix + '/schedule', '', { qos:1, retain:true });
+    // NOTE : l'état activé/désactivé n'est plus re-publié ici. Le firmware persiste
+    // _scheduleEnabled en NVS (survit aux redémarrages) et c'est la seule source de
+    // vérité, partagée entre tous les téléphones connectés via le champ sched_enabled
+    // de status/full (voir applyFull()). Re-publier l'état local de CETTE app à
+    // chaque reconnexion permettait à un second téléphone (état local périmé ou par
+    // défaut) d'écraser silencieusement ce que l'autre venait de régler.
     // Appliquer le créneau de programmation actuel à la (re)connexion
     lastSchedSlot = Math.floor(new Date().getHours() / 2);
     lastDayType   = isWeekendDay() ? 'weekend' : 'week';
@@ -1008,6 +1002,20 @@ function applyFull(d) {
   if (d.maint_joint !== undefined) document.getElementById('joint-days').textContent = d.maint_joint + ' jours';
   if (d.maint_ramon !== undefined) document.getElementById('ramon-days').textContent = d.maint_ramon + ' jours depuis le dernier';
   if (d.maint_seal  !== undefined) document.getElementById('seal-days').textContent  = d.maint_seal  + ' jours';
+  // Récupère l'état activé/désactivé persisté par le firmware pour que tous les
+  // téléphones connectés convergent vers lui, plutôt que chaque app ne fasse
+  // confiance qu'à son propre bouton local.
+  if (d.sched_enabled !== undefined && !isLocked('sched_enabled')) {
+    const en = !!d.sched_enabled;
+    if (en !== schedEnabled) {
+      schedEnabled = en;
+      localStorage.setItem(LS_SCHED_EN, en ? '1' : '0');
+      document.getElementById('sched-badge').classList.toggle('active', en);
+      const togEl = document.getElementById('tog-sched-enable');
+      if (togEl) togEl.checked = en;
+      updateSchedStatus();
+    }
+  }
 
   applyTechState(d);
   calcBurnTime();
@@ -1693,6 +1701,7 @@ function updateSchedTabs() {
 
 function setSchedEnabled(on) {
   schedEnabled = on;
+  lockField('sched_enabled');
   localStorage.setItem(LS_SCHED_EN, on ? '1' : '0');
   document.getElementById('sched-badge').classList.toggle('active', on);
   updateSchedStatus();
