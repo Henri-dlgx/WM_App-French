@@ -1034,13 +1034,13 @@ function updateBleRoomTemp() {
   if (!el) return;
   if (bleRoomTempOk && bleRoomTemp !== null) {
     lastKnownBleTemp = bleRoomTemp;
-    el.textContent      = bleRoomTemp.toFixed(1) + '°';
+    el.textContent      = Math.round(bleRoomTemp) + '°';
     el.style.fontStyle  = 'normal';
     el.style.opacity    = '1';
     lbl.textContent     = 'Température actuelle';
     lbl.style.fontStyle = 'normal';
   } else if (lastKnownBleTemp !== null) {
-    el.textContent      = lastKnownBleTemp.toFixed(1) + '°';
+    el.textContent      = Math.round(lastKnownBleTemp) + '°';
     el.style.fontStyle  = 'italic';
     el.style.opacity    = '0.65';
     lbl.textContent     = 'Dernière mesure';
