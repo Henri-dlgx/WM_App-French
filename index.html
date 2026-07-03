@@ -660,6 +660,7 @@ let schedDrag        = null;
 let schedSlotTimer   = null;
 let lastSchedSlot    = -1;
 let lastDayType      = null;                // 'week' | 'weekend' — détecte le passage semaine↔week-end
+let fwSchedSlot      = -1;                  // créneau 2h actif rapporté par le poêle (sched_slot), -1 = inconnu
 let _pushSub         = null;
 let lastFaultMsg     = '';
 const _pushThrottle  = {};
@@ -1016,6 +1017,13 @@ function applyFull(d) {
       if (togEl) togEl.checked = en;
       updateSchedStatus();
     }
+  }
+  // Suit le créneau réellement appliqué par le poêle (piloté NTP, source de vérité),
+  // pour que le résumé « Maintenant / Suivant » corresponde au poêle et non à
+  // l'horloge de ce téléphone.
+  if (d.sched_slot !== undefined) {
+    const s = parseInt(d.sched_slot);
+    if (s !== fwSchedSlot) { fwSchedSlot = s; updateSchedStatus(); }
   }
 
   applyTechState(d);
@@ -1665,19 +1673,29 @@ function setSchedEnabled(on) {
   localStorage.setItem(LS_SCHED_EN, on ? '1' : '0');
   document.getElementById('sched-badge').classList.toggle('active', on);
   updateSchedStatus();
-  if (on) applyScheduleSlot();
+  if (client && client.connected) {
+    // Le firmware est la seule autorité : on lui dit activé/désactivé (persisté en
+    // NVS + renvoyé dans sched_enabled), et tous les téléphones convergent dessus.
+    client.publish(prefix + '/cmd/schedule_en', on ? '1' : '0', { qos:1 });
+    if (on) {
+      // Pousse la courbe du jour (jour actif en premier) pour que le firmware l'ait.
+      client.publish(prefix + '/schedule', schedPayload(), { qos:1, retain:true });
+    }
+    // On NE vide PAS la courbe retenue à la désactivation : c'est la seule copie
+    // partagée entre téléphones. Le firmware ne l'applique que si la programmation
+    // est activée (activation découplée des données), donc la garder est sans risque.
+  }
 }
 
 function applyScheduleSlot() {
-  if (!schedEnabled || !client || !client.connected) return;
-  const slot = Math.floor(new Date().getHours() / 2);
-  const t = activeSched()[slot];
-  if (t < SCHED_TMIN || t > SCHED_TMAX) return;
-  roomTemp = t;
-  document.getElementById('room-val').textContent = tempToLabel(roomTemp);
-  localStorage.setItem('woodmood_room_temp', roomTemp);
-  lockField('room_temp', roomTemp);
-  publish('cmd/room_temp', roomTemp);
+  // Le firmware (heure NTP) est le SEUL à appliquer chaque créneau et renvoie le
+  // résultat via room_setpoint dans status/full (voir applyFull). L'app ne publie
+  // plus cmd/room_temp depuis la programmation : quand plusieurs téléphones le
+  // faisaient, chacun suivait l'horloge de son navigateur et ils se disputaient la
+  // consigne — entre eux et avec le firmware. Chaque téléphone affiche désormais ce
+  // que le poêle rapporte, donc tous restent d'accord. Cette fonction ne rafraîchit
+  // que le résumé « Maintenant / Suivant ».
+  updateSchedStatus();
 }
 
 function updateSchedStatus() {
@@ -1685,7 +1703,11 @@ function updateSchedStatus() {
   if (!el) return;
   if (!schedEnabled) { el.textContent = ''; return; }
   const arr  = activeSched();
-  const slot = Math.floor(new Date().getHours() / 2);
+  // Préfère le créneau rapporté par le poêle (NTP, partagé par tous les téléphones) ;
+  // repli sur l'horloge de cet appareil tant qu'aucun statut n'est arrivé.
+  const slot = (fwSchedSlot >= 0 && fwSchedSlot < SCHED_SLOTS)
+             ? fwSchedSlot
+             : Math.floor(new Date().getHours() / 2);
   const nextSlot = (slot + 1) % SCHED_SLOTS;
   const dayLbl = isWeekendDay() ? 'Week-end' : 'Semaine';
   el.textContent = dayLbl + ' · ' + (slot*2) + 'h–' + (slot*2+2) + 'h : ' + tempToLabel(arr[slot]) + '  →  Suivant : ' + tempToLabel(arr[nextSlot]);
@@ -1881,8 +1903,10 @@ function saveSchedule() {
   persistSched();
   updateSchedStatus();
   if (!client || !client.connected) { showToast('Enregistré localement (non connecté)'); return; }
+  // Publie toujours la courbe retenue (même désactivée) pour que tous les téléphones
+  // convergent ; le firmware ne l'applique que si la programmation est activée.
   client.publish(prefix + '/schedule', schedPayload(), { qos: 1, retain: true });
-  applyScheduleSlot();
+  updateSchedStatus();
   showToast(schedEnabled ? 'Programmation enregistrée et appliquée' : 'Programmation enregistrée (activez pour l\'appliquer)');
 }
 
