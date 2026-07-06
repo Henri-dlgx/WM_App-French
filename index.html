@@ -626,9 +626,10 @@ const LS_SCHED_EN = 'woodmood_sched_enabled';
 const LS_PUSH     = 'woodmood_push_enabled';
 
 // Broker is the same for every device — only the serial + password differ per user.
+// Login is per-serial: username is always "<serial>-app", locked by EMQX ACL
+// to that stove's own WoodMood<serial>/# topic tree.
 const MQTT_BROKER = 'pb666061.ala.eu-central-1.emqxsl.com';
 const MQTT_PORT   = 8084;
-const MQTT_USER   = 'HenriWM123';
 
 const RELAY_URL     = 'https://woodmood-relay.fly.dev';
 const RELAY_SECRET  = 'woodmood-jjqf9d-2026';
@@ -724,6 +725,7 @@ window.addEventListener('load', () => {
   const savedRoom = parseInt(localStorage.getItem('woodmood_room_temp'));
   if (savedRoom >= 18 && savedRoom <= 23) roomTemp = savedRoom;
   if (cfg.pass && cfg.serial) {
+    cfg.user = cfg.serial + '-app';
     fillForm();
     document.getElementById('conn-card').style.display = 'none';
     connect();
@@ -750,9 +752,9 @@ function toggleConnPanel() {
 function saveAndConnect() {
   cfg.broker = MQTT_BROKER;
   cfg.port   = MQTT_PORT;
-  cfg.user   = MQTT_USER;
-  cfg.pass   = document.getElementById('cfg-pass').value.trim();
   cfg.serial = document.getElementById('cfg-serial').value.trim();
+  cfg.user   = cfg.serial + '-app';
+  cfg.pass   = document.getElementById('cfg-pass').value.trim();
   if (!cfg.pass || !cfg.serial) { alert('Veuillez remplir tous les champs'); return; }
   localStorage.setItem(LS, JSON.stringify(cfg));
   document.getElementById('conn-card').style.display = 'none';
@@ -766,7 +768,7 @@ function connect() {
   if (client) { try { client.end(true); } catch(e){} }
 
   client = mqtt.connect(`wss://${MQTT_BROKER}:${MQTT_PORT}/mqtt`, {
-    username:        MQTT_USER,
+    username:        cfg.user,
     password:        cfg.pass,
     clientId:        'woodmood-web-' + Math.random().toString(16).substr(2,8),
     keepalive:       60,
