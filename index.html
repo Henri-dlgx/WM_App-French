@@ -405,6 +405,20 @@
         <svg id="schedule-svg" width="100%" viewBox="0 0 320 155" style="display:block;touch-action:none;overflow:visible"></svg>
         <div id="sched-status" style="font-size:.78rem;color:#8B4513;margin-top:8px;text-align:center;min-height:1.2em"></div>
         <button class="btn btn-brown btn-sm btn-full" style="margin-top:8px" onclick="saveSchedule()">Enregistrer et appliquer</button>
+
+        <!-- ── Rapport quotidien des bûches ── -->
+        <div class="divider" style="margin:16px 0 12px"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <span style="font-size:.85rem;font-weight:600;color:#5a3015">Rapport quotidien des bûches</span>
+          <label class="tgl"><input type="checkbox" id="tog-daily-report" onchange="setDailyReportEnabled(this.checked)"><span class="tgl-sl"></span></label>
+        </div>
+        <div style="font-size:.78rem;color:#888;margin-bottom:10px">Recevez chaque jour, à l'heure choisie, un récapitulatif des bûches restantes et de la température — envoyé uniquement lorsque le poêle est en marche (automatique).</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:.82rem;font-weight:600;color:#5a3015">Heure d'envoi</span>
+          <input type="time" id="daily-report-time" value="20:00" onchange="setDailyReportTime(this.value)"
+                 style="flex:none;padding:6px 8px;border:1px solid #d8c4b0;border-radius:8px;font-size:.9rem;color:#5a3015;background:#fff">
+        </div>
+        <div id="daily-report-status" style="font-size:.78rem;color:#8B4513;margin-top:8px;text-align:center;min-height:1.2em"></div>
       </div>
     </div>
   </div>
@@ -624,6 +638,7 @@ const LS_SCHED    = 'woodmood_schedule';        // ancien format (tableau plat) 
 const LS_SCHED_V2 = 'woodmood_schedule_v2';     // {week:[12], weekend:[12]}
 const LS_SCHED_EN = 'woodmood_sched_enabled';
 const LS_PUSH     = 'woodmood_push_enabled';
+const LS_DAILY    = 'woodmood_daily_report';    // {enabled, time:'HH:MM', lastSent:'YYYY-MM-DD'}
 
 // Broker is the same for every device — only the serial + password differ per user.
 // Login is per-serial: username is always "<serial>-app", locked by EMQX ACL
@@ -665,6 +680,11 @@ let fwSchedSlot      = -1;                  // créneau 2h actif rapporté par l
 let _pushSub         = null;
 let lastFaultMsg     = '';
 const _pushThrottle  = {};
+
+// Rapport quotidien des bûches — notification locale envoyée une fois par jour
+// à l'heure choisie, tant que l'app tourne et que le poêle est en marche.
+let dailyReport      = { enabled: false, time: '20:00', lastSent: '' };
+let dailyReportTimer = null;
 
 // Suivi d'état dérivé
 let stoveTemp          = null;   // dernière température du poêle (°C) via MQTT
@@ -721,6 +741,7 @@ function ignoreEcho(f, incoming) {
 window.addEventListener('load', () => {
   loadSettings();
   initSchedule();
+  initDailyReport();
   // Restaure la dernière température souhaitée depuis localStorage
   const savedRoom = parseInt(localStorage.getItem('woodmood_room_temp'));
   if (savedRoom >= 18 && savedRoom <= 23) roomTemp = savedRoom;
@@ -1649,6 +1670,9 @@ function toggleOptions() {
   document.getElementById('options-arrow').classList.toggle('open', optionsOpen);
   if (optionsOpen) {
     document.getElementById('tog-sched-enable').checked = schedEnabled;
+    document.getElementById('tog-daily-report').checked  = dailyReport.enabled;
+    document.getElementById('daily-report-time').value   = dailyReport.time;
+    updateDailyReportStatus();
     schedEditMode = isWeekendDay() ? 'weekend' : 'week';   // ouvrir sur la courbe du jour
     updateSchedTabs();
     renderScheduleSVG();
@@ -1923,6 +1947,89 @@ function triggerPush(tag, title, body) {
     const n = new Notification(title, { body, icon: 'icon-192.png', tag, renotify: true });
     n.onclick = () => { window.focus(); n.close(); };
   }
+}
+
+// ============================================================
+// RAPPORT QUOTIDIEN DES BÛCHES
+// ============================================================
+// Une notification par jour, à l'heure choisie, avec l'état des bûches et la
+// température — seulement si le poêle est en marche (état "auto"). La notification
+// est générée localement depuis les dernières données MQTT : elle ne peut donc
+// partir que si l'app tourne (ouverte ou en arrière-plan) à l'heure choisie.
+function initDailyReport() {
+  const saved = JSON.parse(localStorage.getItem(LS_DAILY) || 'null');
+  if (saved && typeof saved === 'object') {
+    dailyReport.enabled  = !!saved.enabled;
+    if (/^\d{2}:\d{2}$/.test(saved.time || '')) dailyReport.time = saved.time;
+    dailyReport.lastSent = saved.lastSent || '';
+  }
+  const tog = document.getElementById('tog-daily-report');
+  const inp = document.getElementById('daily-report-time');
+  if (tog) tog.checked = dailyReport.enabled;
+  if (inp) inp.value   = dailyReport.time;
+  updateDailyReportStatus();
+  // Vérifie chaque minute — l'intervalle survit à la mise en veille de l'onglet
+  // et rattrape l'heure exacte tant que l'app reste chargée.
+  if (dailyReportTimer) clearInterval(dailyReportTimer);
+  dailyReportTimer = setInterval(checkDailyReport, 30_000);
+}
+
+function persistDailyReport() {
+  localStorage.setItem(LS_DAILY, JSON.stringify(dailyReport));
+}
+
+function setDailyReportEnabled(on) {
+  dailyReport.enabled = on;
+  // Nouvelle activation : autorise un envoi aujourd'hui même si un précédent
+  // rapport avait déjà été marqué comme envoyé.
+  if (on) dailyReport.lastSent = '';
+  persistDailyReport();
+  updateDailyReportStatus();
+  // Demande la permission de notifier si l'utilisateur ne l'a pas encore accordée.
+  if (on && 'Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function setDailyReportTime(t) {
+  if (!/^\d{2}:\d{2}$/.test(t)) return;
+  dailyReport.time = t;
+  dailyReport.lastSent = '';   // change d'heure → l'envoi du jour redevient possible
+  persistDailyReport();
+  updateDailyReportStatus();
+}
+
+function updateDailyReportStatus() {
+  const el = document.getElementById('daily-report-status');
+  if (!el) return;
+  if (!dailyReport.enabled) { el.textContent = ''; return; }
+  el.textContent = 'Rapport prévu chaque jour à ' + dailyReport.time
+                 + (dailyReport.lastSent === todayStr() ? ' · envoyé aujourd’hui ✓' : '');
+}
+
+function todayStr() {
+  const n = new Date();
+  return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0')
+       + '-' + String(n.getDate()).padStart(2, '0');
+}
+
+function checkDailyReport() {
+  if (!dailyReport.enabled) return;
+  const now = new Date();
+  const cur = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  if (cur !== dailyReport.time) return;
+  if (dailyReport.lastSent === todayStr()) return;
+  // Condition : le poêle doit être en marche (automatique) — pas démarrage,
+  // refroidissement, veille ni défaut. Si ce n'est pas le cas à l'heure prévue,
+  // on ne marque rien : un nouvel essai est possible tant que la minute dure.
+  if (systemState !== 'auto') return;
+
+  dailyReport.lastSent = todayStr();
+  persistDailyReport();
+  const temp = stoveTemp !== null ? Math.round(stoveTemp) + '°' : '—';
+  triggerPush('daily-report', '🪵 WoodMood — Rapport quotidien',
+    'Gauche : ' + logL + ' · Droite : ' + logR + ' · Temp : ' + temp);
+  updateDailyReportStatus();
 }
 
 async function enablePushNotifications() {
