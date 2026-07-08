@@ -1978,17 +1978,20 @@ function persistDailyReport() {
   localStorage.setItem(LS_DAILY, JSON.stringify(dailyReport));
 }
 
-function setDailyReportEnabled(on) {
+async function setDailyReportEnabled(on) {
   dailyReport.enabled = on;
   // Nouvelle activation : autorise un envoi aujourd'hui même si un précédent
   // rapport avait déjà été marqué comme envoyé.
   if (on) dailyReport.lastSent = '';
   persistDailyReport();
   updateDailyReportStatus();
-  // Demande la permission de notifier si l'utilisateur ne l'a pas encore accordée.
-  if (on && 'Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission();
+  // La livraison app fermée passe par le relais, qui a besoin d'un abonnement
+  // push. À l'activation, on s'assure que les notifications push sont actives
+  // (demande la permission + abonne) puis on enregistre l'horaire côté relais.
+  if (on && !_pushSub) {
+    await enablePushNotifications();
   }
+  syncDailyToRelay();
 }
 
 function setDailyReportTime(t) {
@@ -1997,6 +2000,23 @@ function setDailyReportTime(t) {
   dailyReport.lastSent = '';   // change d'heure → l'envoi du jour redevient possible
   persistDailyReport();
   updateDailyReportStatus();
+  syncDailyToRelay();
+}
+
+// Enregistre l'horaire du rapport quotidien sur le relais (livraison app fermée).
+// Sans abonnement push (_pushSub), le relais n'a rien à qui envoyer → on saute.
+function syncDailyToRelay() {
+  if (!_pushSub) return;
+  const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone) || 'UTC';
+  fetch(`${RELAY_URL}/daily`, {
+    method: 'POST', headers: RELAY_HEADERS,
+    body: JSON.stringify({
+      endpoint: _pushSub.endpoint,
+      enabled:  dailyReport.enabled,
+      time:     dailyReport.time,
+      tz
+    })
+  }).catch(() => {});
 }
 
 function updateDailyReportStatus() {
@@ -2047,9 +2067,15 @@ async function enablePushNotifications() {
       applicationServerKey: urlBase64ToUint8Array(key)
     });
     const serial = document.getElementById('cfg-serial')?.value || cfg.serial || 'JJQF9D';
+    // Enregistre aussi l'horaire du rapport quotidien dès l'abonnement (le relais
+    // n'appliquera l'envoi que si enabled=true).
+    const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone) || 'UTC';
     await fetch(`${RELAY_URL}/subscribe`, {
       method: 'POST', headers: RELAY_HEADERS,
-      body: JSON.stringify({ subscription: sub, serial })
+      body: JSON.stringify({
+        subscription: sub, serial,
+        daily: { enabled: dailyReport.enabled, time: dailyReport.time, tz }
+      })
     });
     _pushSub = sub;
     localStorage.setItem(LS_PUSH, '1');
