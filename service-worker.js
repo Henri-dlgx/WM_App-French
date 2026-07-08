@@ -29,13 +29,18 @@ self.addEventListener('push', event => {
   const tag  = data.tag ?? 'woodmood';
   event.waitUntil(
     (async () => {
-      // If a WoodMood tab is open and focused, the page already showed its own
-      // Notification from the live MQTT status (see triggerPush() in index.html) —
-      // showing this one too would duplicate it. Only the service worker path can
-      // reach the user when no tab is open, so skip here in that one case.
-      const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-      const hasFocusedTab = windows.some(c => c.focused);
-      if (hasFocusedTab) return;
+      // The foreground page shows its own Notification for LIVE MQTT alerts
+      // (fault / cartridge empty / low) via triggerPush() in index.html. For
+      // those tags only, skip the push copy when a tab is focused so it doesn't
+      // duplicate. Test and daily-report pushes have NO in-page equivalent — the
+      // service worker is the only thing that shows them — so they must ALWAYS
+      // show, even with the app open (otherwise the "send test" button, pressed
+      // from inside the open app, silently shows nothing).
+      const liveTag = /^(fault|empty-[LR]|low-[LR])$/.test(tag);
+      if (liveTag) {
+        const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+        if (windows.some(c => c.focused)) return;
+      }
 
       if (await shouldThrottle(tag)) return;
 
