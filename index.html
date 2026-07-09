@@ -129,7 +129,7 @@
     .cart-btn-stack{display:flex;flex-direction:column;gap:5px;width:100%;margin-top:4px}
     .cart-btn-stack .btn{font-size:.76rem;padding:8px 4px;width:100%;flex:none}
     .time-col{display:flex;flex-direction:column;align-items:center;justify-content:center;
-      padding:12px 0;color:#8B4513}
+      padding:12px 0;margin-top:70px;color:#8B4513}
     .time-label{font-size:.6rem;font-weight:700;text-transform:uppercase;
       letter-spacing:.06em;color:#aaa;margin-bottom:5px;text-align:center}
     .time-val{font-size:1.15rem;font-weight:700;color:#8B4513;text-align:center}
@@ -392,22 +392,7 @@
     </div>
     <div class="settings-body" id="options-body">
       <div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <span style="font-size:.85rem;font-weight:600;color:#5a3015">Activer la programmation</span>
-          <label class="tgl"><input type="checkbox" id="tog-sched-enable" onchange="setSchedEnabled(this.checked)"><span class="tgl-sl"></span></label>
-        </div>
-        <div class="settings-section">Programmation de température</div>
-        <div style="font-size:.78rem;color:#888;margin-bottom:10px">Faites glisser les points pour régler le confort par tranche de 2h (T1–T6)</div>
-        <div class="sched-tabs">
-          <button type="button" class="sched-tab active" id="sched-tab-week"    onclick="setSchedEditMode('week')">Semaine</button>
-          <button type="button" class="sched-tab"        id="sched-tab-weekend" onclick="setSchedEditMode('weekend')">Week-end</button>
-        </div>
-        <svg id="schedule-svg" width="100%" viewBox="0 0 320 155" style="display:block;touch-action:none;overflow:visible"></svg>
-        <div id="sched-status" style="font-size:.78rem;color:#8B4513;margin-top:8px;text-align:center;min-height:1.2em"></div>
-        <button class="btn btn-brown btn-sm btn-full" style="margin-top:8px" onclick="saveSchedule()">Enregistrer et appliquer</button>
-
         <!-- ── Rapport quotidien des bûches ── -->
-        <div class="divider" style="margin:16px 0 12px"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <span style="font-size:.85rem;font-weight:600;color:#5a3015">Rapport quotidien des bûches</span>
           <label class="tgl"><input type="checkbox" id="tog-daily-report" onchange="setDailyReportEnabled(this.checked)"><span class="tgl-sl"></span></label>
@@ -419,6 +404,22 @@
                  style="flex:none;padding:6px 8px;border:1px solid #d8c4b0;border-radius:8px;font-size:.9rem;color:#5a3015;background:#fff">
         </div>
         <div id="daily-report-status" style="font-size:.78rem;color:#8B4513;margin-top:8px;text-align:center;min-height:1.2em"></div>
+
+        <!-- ── Programmation de température ── -->
+        <div class="divider" style="margin:16px 0 12px"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <span style="font-size:.85rem;font-weight:600;color:#5a3015">Activer la programmation</span>
+          <label class="tgl"><input type="checkbox" id="tog-sched-enable" onchange="setSchedEnabled(this.checked)"><span class="tgl-sl"></span></label>
+        </div>
+        <div class="settings-section">Programmation de température</div>
+        <div style="font-size:.78rem;color:#888;margin-bottom:10px">Faites glisser les points pour régler le confort par tranche de 2h (T1–T6)</div>
+        <div class="sched-tabs">
+          <button type="button" class="sched-tab active" id="sched-tab-week"    onclick="setSchedEditMode('week')">Semaine</button>
+          <button type="button" class="sched-tab"        id="sched-tab-weekend" onclick="setSchedEditMode('weekend')">Week-end</button>
+        </div>
+        <svg id="schedule-svg" width="100%" viewBox="-8 0 340 155" style="display:block;touch-action:none;overflow:visible"></svg>
+        <div id="sched-status" style="font-size:.78rem;color:#8B4513;margin-top:8px;text-align:center;min-height:1.2em"></div>
+        <button class="btn btn-brown btn-sm btn-full" style="margin-top:8px" onclick="saveSchedule()">Enregistrer et appliquer</button>
       </div>
     </div>
   </div>
@@ -1756,6 +1757,17 @@ function smoothPath(pts) {
   return d;
 }
 
+// Courbe avec « bouclage » de 24h → 0h : de courtes amorces débordent aux deux
+// extrémités pour montrer que l'horaire est cyclique (la valeur de 22h revient à 0h).
+function smoothPathWrap(pts) {
+  const n = pts.length;
+  if (n < 2) return smoothPath(pts);
+  const over = (spX(1) - spX(0)) * 0.6;               // débordement des amorces
+  const lead  = { x: pts[0].x - over,     y: pts[n - 1].y };  // arrive « de plus haut » (valeur de 22h)
+  const trail = { x: pts[n - 1].x + over, y: pts[0].y };      // repart vers la valeur de 0h
+  return smoothPath([lead].concat(pts, [trail]));
+}
+
 function renderScheduleSVG() {
   const svg = document.getElementById('schedule-svg');
   if (!svg) return;
@@ -1813,7 +1825,7 @@ function renderScheduleSVG() {
   // Courbe
   const curve = document.createElementNS(ns, 'path');
   curve.setAttribute('id', 'sched-curve');
-  curve.setAttribute('d', smoothPath(pts));
+  curve.setAttribute('d', smoothPathWrap(pts));
   curve.setAttribute('fill', 'none'); curve.setAttribute('stroke', '#8B4513');
   curve.setAttribute('stroke-width', '2'); curve.setAttribute('stroke-linejoin', 'round');
   svg.appendChild(curve);
@@ -1869,7 +1881,7 @@ function updateScheduleSVG() {
   const pts = cur.map(function(t, i) { return { x: spX(i), y: spY(t) }; });
 
   const curve = svg.querySelector('#sched-curve');
-  if (curve) curve.setAttribute('d', smoothPath(pts));
+  if (curve) curve.setAttribute('d', smoothPathWrap(pts));
 
   const fill = svg.querySelector('#sched-fill');
   if (fill) fill.setAttribute('d', smoothPath(pts) + ' L ' + pts[pts.length-1].x + ' ' + SPB + ' L ' + pts[0].x + ' ' + SPB + ' Z');
