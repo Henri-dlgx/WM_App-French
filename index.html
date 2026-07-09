@@ -419,7 +419,8 @@
           <span style="font-size:.85rem;font-weight:600;color:#5a3015">Mode silencieux</span>
           <label class="tgl"><input type="checkbox" id="silence-toggle" onchange="setSilenceMode(this.checked)"><span class="tgl-sl"></span></label>
         </div>
-        <div style="font-size:.78rem;color:#888">Met en pause les insertions de bûches — le poêle continue de chauffer, mais aucune bûche n'est insérée tant que ce mode est actif.</div>
+        <div style="font-size:.78rem;color:#888">Met en pause les insertions de bûches et limite les ventilateurs à 35 % pour un fonctionnement discret. Se désactive automatiquement après 3 h.</div>
+        <div id="silence-remaining" style="font-size:.8rem;font-weight:600;color:#c0392b;margin-top:6px;min-height:1.1em"></div>
       </div>
     </div>
   </div>
@@ -1062,7 +1063,20 @@ function applyTechState(d) {
   if (d.silence_mode !== undefined && !isLocked('silence_mode')) {
     const on = !!d.silence_mode;
     document.getElementById('silence-toggle').checked = on;
+    renderSilenceRemaining(on ? (d.silence_remaining_s || 0) : 0);
   }
+}
+
+// Affiche le décompte « se désactive dans … » sous l'interrupteur (vide si off).
+function renderSilenceRemaining(sec) {
+  const el = document.getElementById('silence-remaining');
+  if (!el) return;
+  sec = Number(sec) || 0;
+  if (sec <= 0) { el.textContent = ''; return; }
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const t = h > 0 ? (h + ' h ' + String(m).padStart(2, '0') + ' min') : (m + ' min');
+  el.textContent = 'Se désactive automatiquement dans ' + t;
 }
 
 // ============================================================
@@ -1375,7 +1389,8 @@ function calcBurnTime() {
 function setSilenceMode(on) {
   lockField('silence_mode');
   publish('cmd/silence', on ? '1' : '0');
-  showToast(on ? 'Mode silencieux activé — insertions en pause' : 'Mode silencieux désactivé');
+  renderSilenceRemaining(on ? 3 * 3600 : 0);   // décompte optimiste jusqu'à l'écho du poêle
+  showToast(on ? 'Mode silencieux activé — insertions en pause, ventilateurs à 35 %' : 'Mode silencieux désactivé');
 }
 
 // ============================================================
