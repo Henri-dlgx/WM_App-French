@@ -197,8 +197,6 @@
     .gap-col{display:flex;flex-direction:column;gap:8px}
 
     /* ── Mode silencieux ── */
-    .silence-icon{font-size:1.3rem;line-height:1;opacity:.4;transition:opacity .2s,filter .2s;filter:grayscale(1)}
-    .silence-icon.active{opacity:1;filter:none}
     #silence-toggle:checked + .tgl-sl{background:#c0392b}
 
     /* ── Interrupteur à bascule ── */
@@ -418,10 +416,7 @@
         <!-- ── Mode silencieux ── -->
         <div class="divider" style="margin:16px 0 12px"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
-          <div style="display:flex;align-items:center;gap:10px">
-            <span class="silence-icon" id="silence-icon">🤫</span>
-            <span style="font-size:.85rem;font-weight:600;color:#5a3015">Mode silencieux</span>
-          </div>
+          <span style="font-size:.85rem;font-weight:600;color:#5a3015">Mode silencieux</span>
           <label class="tgl"><input type="checkbox" id="silence-toggle" onchange="setSilenceMode(this.checked)"><span class="tgl-sl"></span></label>
         </div>
         <div style="font-size:.78rem;color:#888">Met en pause les insertions de bûches — le poêle continue de chauffer, mais aucune bûche n'est insérée tant que ce mode est actif.</div>
@@ -1067,7 +1062,6 @@ function applyTechState(d) {
   if (d.silence_mode !== undefined && !isLocked('silence_mode')) {
     const on = !!d.silence_mode;
     document.getElementById('silence-toggle').checked = on;
-    document.getElementById('silence-icon').classList.toggle('active', on);
   }
 }
 
@@ -1381,7 +1375,6 @@ function calcBurnTime() {
 function setSilenceMode(on) {
   lockField('silence_mode');
   publish('cmd/silence', on ? '1' : '0');
-  document.getElementById('silence-icon').classList.toggle('active', on);
   showToast(on ? 'Mode silencieux activé — insertions en pause' : 'Mode silencieux désactivé');
 }
 
