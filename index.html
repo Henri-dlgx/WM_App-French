@@ -197,10 +197,8 @@
     .gap-col{display:flex;flex-direction:column;gap:8px}
 
     /* ── Mode silencieux ── */
-    .silence-ctrl{display:flex;align-items:center;gap:8px}
     .silence-icon{font-size:1.3rem;line-height:1;opacity:.4;transition:opacity .2s,filter .2s;filter:grayscale(1)}
     .silence-icon.active{opacity:1;filter:none}
-    .silence-ctrl .tgl-sl{background:rgba(255,255,255,.25)}
     #silence-toggle:checked + .tgl-sl{background:#c0392b}
 
     /* ── Interrupteur à bascule ── */
@@ -246,10 +244,6 @@
   <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 2px">
     <div class="logo">WooDMooD</div>
     <div style="display:flex;align-items:center;gap:10px">
-      <div class="silence-ctrl" title="Mode silencieux — pause les insertions de bûches">
-        <span class="silence-icon" id="silence-icon">🤫</span>
-        <label class="tgl"><input type="checkbox" id="silence-toggle" onchange="setSilenceMode(this.checked)"><span class="tgl-sl"></span></label>
-      </div>
       <div class="status-badge" onclick="toggleConnPanel()">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-label">Déconnecté</span>
@@ -420,6 +414,17 @@
         <svg id="schedule-svg" width="100%" viewBox="-8 0 340 155" style="display:block;touch-action:none;overflow:visible"></svg>
         <div id="sched-status" style="font-size:.78rem;color:#8B4513;margin-top:8px;text-align:center;min-height:1.2em"></div>
         <button class="btn btn-brown btn-sm btn-full" style="margin-top:8px" onclick="saveSchedule()">Enregistrer et appliquer</button>
+
+        <!-- ── Mode silencieux ── -->
+        <div class="divider" style="margin:16px 0 12px"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="silence-icon" id="silence-icon">🤫</span>
+            <span style="font-size:.85rem;font-weight:600;color:#5a3015">Mode silencieux</span>
+          </div>
+          <label class="tgl"><input type="checkbox" id="silence-toggle" onchange="setSilenceMode(this.checked)"><span class="tgl-sl"></span></label>
+        </div>
+        <div style="font-size:.78rem;color:#888">Met en pause les insertions de bûches — le poêle continue de chauffer, mais aucune bûche n'est insérée tant que ce mode est actif.</div>
       </div>
     </div>
   </div>
