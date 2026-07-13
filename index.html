@@ -564,6 +564,19 @@
       <div class="divider"></div>
       [END DISABLED] -->
 
+      <!-- Compte -->
+      <div>
+        <div class="settings-section">Compte</div>
+        <div class="gap-col">
+          <input class="conn-input" id="pw-new"     placeholder="Nouveau mot de passe" type="password"/>
+          <input class="conn-input" id="pw-confirm" placeholder="Confirmer le nouveau mot de passe" type="password"/>
+          <button class="btn btn-brown btn-sm btn-full" id="pw-change-btn" onclick="changePassword()">Changer le mot de passe</button>
+          <div id="pw-change-status" style="font-size:.8rem;margin-top:2px;opacity:.7;text-align:center"></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
       <!-- Redémarrage ESP -->
       <div>
         <button class="btn btn-red btn-full" onclick="resetESP()">↺ Redémarrer l'ESP32</button>
@@ -682,6 +695,13 @@ let fwSchedSlot      = -1;                  // créneau 2h actif rapporté par l
 let _pushSub         = null;
 let lastFaultMsg     = '';
 const _pushThrottle  = {};
+
+// Changement de mot de passe — voir PER_SERIAL_AUTH_GUIDE.md §12 (repo firmware).
+// pwChangeNewValue est la valeur en attente de confirmation par le relais
+// (status/app_pw_change) ; pwChangeTimeout couvre le cas où le relais est
+// injoignable ou pas encore configuré, pour ne pas laisser le bouton bloqué.
+let pwChangeNewValue = null;
+let pwChangeTimeout  = null;
 
 // Rapport quotidien des bûches — notification locale envoyée une fois par jour
 // à l'heure choisie, tant que l'app tourne et que le poêle est en marche.
@@ -919,6 +939,29 @@ function onMessage(topic, payloadBuf) {
   if (sub === 'status/fault')      { setFault(payload === '1'); return; }
   if (sub === 'status/fault_msg')  { setFaultMsg(payload);      return; }
   if (sub === 'status/fault_side') { const _s = payload.toLowerCase(); faultSide = (_s === 'right' || _s === 'r') ? 'r' : 'l'; if (faultActive) renderFaultPhase(); return; }
+
+  if (sub === 'status/app_pw_change') {
+    clearTimeout(pwChangeTimeout);
+    const btn    = document.getElementById('pw-change-btn');
+    const status = document.getElementById('pw-change-status');
+    btn.disabled = false;
+    let ok = false;
+    try { ok = !!JSON.parse(payload).ok; } catch(e) {}
+    if (ok && pwChangeNewValue) {
+      cfg.pass = pwChangeNewValue;
+      localStorage.setItem(LS, JSON.stringify(cfg));
+      document.getElementById('cfg-pass').value = cfg.pass;
+      document.getElementById('pw-new').value     = '';
+      document.getElementById('pw-confirm').value = '';
+      status.textContent = 'Mot de passe mis à jour ✓';
+      showToast('Mot de passe changé avec succès');
+    } else {
+      status.textContent = 'Échec — réessayez';
+      showToast('Le changement de mot de passe a échoué');
+    }
+    pwChangeNewValue = null;
+    return;
+  }
 
   if (sub === 'status/temperature') {
     stoveTemp = parseFloat(payload);
@@ -1321,6 +1364,34 @@ function adjustRoom(delta) {
   localStorage.setItem('woodmood_room_temp', roomTemp);
   lockField('room_temp', roomTemp); // garde l'affichage jusqu'à confirmation du firmware
   publish('cmd/room_temp', roomTemp);
+}
+
+// Publie cmd/set_app_password sur la connexion MQTT déjà authentifiée — pas
+// besoin de mot de passe actuel : le fait d'être connecté en tant que
+// <serial>-app EST la preuve de propriété (ACL EMQX). Le relais applique le
+// changement côté EMQX et confirme sur status/app_pw_change ; voir
+// PER_SERIAL_AUTH_GUIDE.md §12 (repo firmware).
+function changePassword() {
+  const btn    = document.getElementById('pw-change-btn');
+  const status = document.getElementById('pw-change-status');
+  const pw1 = document.getElementById('pw-new').value;
+  const pw2 = document.getElementById('pw-confirm').value;
+
+  if (pw1.length < 8)   { showToast('Le mot de passe doit contenir au moins 8 caractères'); return; }
+  if (pw1 !== pw2)      { showToast('Les mots de passe ne correspondent pas'); return; }
+  if (!client || !client.connected) { showToast('Non connecté au courtier'); return; }
+
+  pwChangeNewValue = pw1;
+  btn.disabled = true;
+  status.textContent = 'Envoi de la demande…';
+  publish('cmd/set_app_password', pw1);
+
+  clearTimeout(pwChangeTimeout);
+  pwChangeTimeout = setTimeout(() => {
+    btn.disabled = false;
+    status.textContent = 'Aucune confirmation reçue — réessayez plus tard';
+    pwChangeNewValue = null;
+  }, 10000);
 }
 
 function unlockDoor(side) {
