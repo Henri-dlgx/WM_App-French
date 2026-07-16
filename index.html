@@ -568,6 +568,7 @@
       <div>
         <div class="settings-section">Compte</div>
         <div class="gap-col">
+          <input class="conn-input" id="pw-current" placeholder="Mot de passe actuel" type="password"/>
           <input class="conn-input" id="pw-new"     placeholder="Nouveau mot de passe" type="password"/>
           <input class="conn-input" id="pw-confirm" placeholder="Confirmer le nouveau mot de passe" type="password"/>
           <button class="btn btn-brown btn-sm btn-full" id="pw-change-btn" onclick="changePassword()">Changer le mot de passe</button>
@@ -952,6 +953,7 @@ function onMessage(topic, payloadBuf) {
       cfg.pass = pwChangeNewValue;
       localStorage.setItem(LS, JSON.stringify(cfg));
       document.getElementById('cfg-pass').value = cfg.pass;
+      document.getElementById('pw-current').value = '';
       document.getElementById('pw-new').value     = '';
       document.getElementById('pw-confirm').value = '';
       status.textContent = 'Mot de passe mis à jour ✓';
@@ -1367,19 +1369,23 @@ function adjustRoom(delta) {
   publish('cmd/room_temp', roomTemp);
 }
 
-// Publie cmd/set_app_password sur la connexion MQTT déjà authentifiée — pas
-// besoin de mot de passe actuel : le fait d'être connecté en tant que
-// <serial>-app EST la preuve de propriété (ACL EMQX). Le relais applique le
-// changement côté EMQX et confirme sur status/app_pw_change ; voir
-// PER_SERIAL_AUTH_GUIDE.md §12 (repo firmware).
+// Publie cmd/set_app_password sur la connexion MQTT déjà authentifiée. Côté
+// relais, c'est l'ACL EMQX (être connecté en tant que <serial>-app) qui fait
+// autorité — voir PER_SERIAL_AUTH_GUIDE.md §12 (repo firmware). Le mot de passe
+// actuel demandé ici est une vérification locale contre cfg.pass : elle protège
+// contre un changement depuis un téléphone déjà connecté laissé sans
+// surveillance, mais ce n'est pas une barrière serveur.
 function changePassword() {
   const btn    = document.getElementById('pw-change-btn');
   const status = document.getElementById('pw-change-status');
+  const cur = document.getElementById('pw-current').value;
   const pw1 = document.getElementById('pw-new').value;
   const pw2 = document.getElementById('pw-confirm').value;
 
+  if (cur !== cfg.pass) { showToast('Le mot de passe actuel est incorrect'); return; }
   if (pw1.length < 8)   { showToast('Le mot de passe doit contenir au moins 8 caractères'); return; }
   if (pw1 !== pw2)      { showToast('Les mots de passe ne correspondent pas'); return; }
+  if (pw1 === cur)      { showToast('Le nouveau mot de passe doit être différent de l\'actuel'); return; }
   if (!client || !client.connected) { showToast('Non connecté au courtier'); return; }
 
   pwChangeNewValue = pw1;
