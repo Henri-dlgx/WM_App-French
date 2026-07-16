@@ -717,6 +717,7 @@ let inCooldown         = false;  // refroidissement entamé manuellement (optimi
 let remoteStateReceived= false;  // true dès que le firmware envoie status/system_state
 let logL               = 0;      // nombre de bûches à gauche
 let logR               = 0;      // nombre de bûches à droite
+let bothMagazinesEmptyNotified = false; // avoids re-firing the "both empty" push every second
 let bleRoomTemp        = null;   // température BLE (°C), null = indisponible
 let bleRoomTempOk      = false;  // true quand le capteur BLE a une lecture valide
 let lastKnownBleTemp   = null;   // dernière lecture BLE valide — affichée si capteur hors ligne
@@ -980,8 +981,8 @@ function onMessage(topic, payloadBuf) {
     logL = parseInt(payload) || 0;
     renderBars('left', logL);
     document.getElementById('count-left').textContent = logL + ' bûches';
-    if (logL === 0 && prevL !== 0) triggerPush('empty-L', '🪵 WoodMood — Cassette gauche vide', 'Rechargez la cassette de bûches gauche');
-    else if (logL === 1 && prevL !== 1) triggerPush('low-L', '🪵 WoodMood — Cassette gauche basse', 'Il reste seulement 1 bûche à gauche');
+    if (logL === 1 && prevL !== 1) triggerPush('low-L', '🪵 WoodMood — Cassette gauche basse', 'Il reste seulement 1 bûche à gauche');
+    checkBothMagazinesEmpty();
     calcBurnTime(); return;
   }
   if (sub === 'status/log_level_r') {
@@ -990,8 +991,8 @@ function onMessage(topic, payloadBuf) {
     logR = parseInt(payload) || 0;
     renderBars('right', logR);
     document.getElementById('count-right').textContent = logR + ' bûches';
-    if (logR === 0 && prevR !== 0) triggerPush('empty-R', '🪵 WoodMood — Cassette droite vide', 'Rechargez la cassette de bûches droite');
-    else if (logR === 1 && prevR !== 1) triggerPush('low-R', '🪵 WoodMood — Cassette droite basse', 'Il reste seulement 1 bûche à droite');
+    if (logR === 1 && prevR !== 1) triggerPush('low-R', '🪵 WoodMood — Cassette droite basse', 'Il reste seulement 1 bûche à droite');
+    checkBothMagazinesEmpty();
     calcBurnTime(); return;
   }
   if (sub === 'status/system_state') {
@@ -2042,6 +2043,19 @@ function triggerPush(tag, title, body) {
     _pushThrottle[tag] = now;
     const n = new Notification(title, { body, icon: 'icon-192.png', tag, renotify: true });
     n.onclick = () => { window.focus(); n.close(); };
+  }
+}
+
+// Fires only when BOTH sides are empty, once per transition into that state
+// (not on every per-second MQTT update while it stays empty).
+function checkBothMagazinesEmpty() {
+  if (logL === 0 && logR === 0) {
+    if (!bothMagazinesEmptyNotified) {
+      bothMagazinesEmptyNotified = true;
+      triggerPush('empty-both', '🪵 WoodMood — Cassettes vides', 'Rechargez les deux cassettes de bûches');
+    }
+  } else {
+    bothMagazinesEmptyNotified = false;
   }
 }
 
