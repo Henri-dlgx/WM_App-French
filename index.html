@@ -1340,11 +1340,56 @@ function resolveFault() {
   publish('cmd/resolve_fault', '1');
 }
 
+// Le firmware envoie des messages de défaut codés en dur en anglais (voir
+// SafetyManager::enterFaultMode / AutoSequenceManager.cpp côté HenriLib).
+// On les traduit ici plutôt que côté firmware pour ne pas nécessiter un
+// reflash — repli sur le texte brut si un message inconnu apparaît.
+function translateFaultMsg(msg) {
+  if (!msg) return msg;
+  let m;
+
+  const exact = {
+    'Fan 1 not spinning - check fan wiring': "Ventilateur 1 à l'arrêt — vérifiez le câblage du ventilateur",
+    'Fan 2 not spinning - check fan wiring': "Ventilateur 2 à l'arrêt — vérifiez le câblage du ventilateur",
+    'Unexpected recovery extend': 'Extension de récupération inattendue',
+    'Door opened during recovery extend': "Porte ouverte pendant l'extension de récupération",
+    'Door opened during unexpected state': 'Porte ouverte dans un état inattendu',
+    'Unexpected recovery state': 'État de récupération inattendu'
+  };
+  if (exact[msg] !== undefined) return exact[msg];
+
+  const stallLabels = {
+    'FORWARD_1':            'avance 1',
+    'RETRY_1_MOTOR_BACK':   'retour, tentative 1',
+    'FORWARD_2':            'avance 2',
+    'AUTO_RETURN_HOME':     'retour au repos'
+  };
+  m = msg.match(/^Motor stall in (\w+) — no movement after (\d+)s \(limit (\d+)s\)$/);
+  if (m) {
+    const label = stallLabels[m[1]] || m[1];
+    return `Moteur bloqué (${label}) — aucun mouvement après ${m[2]}s (limite ${m[3]}s)`;
+  }
+
+  m = msg.match(/^Trapdoor failed to close during fault resolution — (RIGHT|LEFT) side not seated\. Clear obstruction and retry\.$/);
+  if (m) {
+    const side = m[1] === 'RIGHT' ? 'droit' : 'gauche';
+    return `La trappe ne s'est pas refermée après résolution du défaut — côté ${side} mal enclenché. Dégagez l'obstruction et réessayez.`;
+  }
+
+  m = msg.match(/^Joint service: motor stall homing to start — no home switch after (\d+)s$/);
+  if (m) return `Entretien du joint : moteur bloqué au retour au point zéro — contact home non détecté après ${m[1]}s`;
+
+  m = msg.match(/^Fast blockage after 2 retries\. Detected in (\d+)ms\. Delta from baseline exceeded threshold\.$/);
+  if (m) return `Blocage rapide après 2 tentatives. Détecté en ${m[1]}ms. L'écart par rapport à la référence dépasse le seuil.`;
+
+  return msg;
+}
+
 function setFaultMsg(msg) {
   if (!msg) return;
-  lastFaultMsg = msg;
+  lastFaultMsg = translateFaultMsg(msg);
   const el = document.getElementById('fault-msg-text');
-  if (el) el.textContent = msg;
+  if (el) el.textContent = lastFaultMsg;
 }
 
 // ============================================================
@@ -2172,10 +2217,20 @@ function checkDailyReport() {
 
   dailyReport.lastSent = todayStr();
   persistDailyReport();
-  const temp = stoveTemp !== null ? Math.round(stoveTemp) + '°' : '—';
-  triggerPush('daily-report', '🪵 WoodMood — Rapport quotidien',
-    'Gauche : ' + logL + ' · Droite : ' + logR + ' · Temp : ' + temp);
+  const total = logL + logR;
+  triggerPush('daily-report', '⏱️ ' + formatTimeLeft(total) + ' restant',
+    'G : ' + logL + ' · R : ' + logR);
   updateDailyReportStatus();
+}
+
+// 40 min de combustion estimée par bûche (les deux côtés confondus).
+function formatTimeLeft(logs) {
+  const mins = logs * 40;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h === 0) return m + ' min';
+  if (m === 0) return h + ' h';
+  return h + ' h ' + m + ' min';
 }
 
 async function enablePushNotifications() {
