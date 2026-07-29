@@ -201,6 +201,18 @@
     /* ── Mode silencieux ── */
     #silence-toggle:checked + .tgl-sl{background:#c0392b}
 
+    /* ── Bouton de maintenance (aide) ── */
+    .mbtn-tbl{border:1px solid #f0e0d0;border-radius:10px;overflow:hidden}
+    .mbtn-hd{padding:7px 10px;font-size:.7rem;font-weight:700;
+      text-transform:uppercase;letter-spacing:.06em}
+    .mbtn-hd.fault{background:#fdecea;color:#c0392b}
+    .mbtn-hd.ok{background:#f2f6ef;color:#4a7c2f;border-top:1px solid #f0e0d0}
+    .mbtn-row{display:grid;grid-template-columns:78px 1fr;gap:10px;padding:8px 10px;
+      font-size:.79rem;line-height:1.4;border-top:1px solid #f7ece1;align-items:start}
+    .mbtn-row b{color:#8B4513;font-weight:700;white-space:nowrap}
+    .mbtn-row span{color:#666}
+    .mbtn-note{font-size:.72rem;color:#999;line-height:1.5;margin-top:8px}
+
     /* ── Interrupteur à bascule ── */
     .tgl{position:relative;display:inline-block;width:48px;height:27px;flex-shrink:0}
     .tgl input{opacity:0;width:0;height:0}
@@ -592,6 +604,26 @@
       <div>
         <button class="btn btn-red btn-full" onclick="resetESP()">↺ Redémarrer l'ESP32</button>
         <p style="font-size:.72rem;color:#aaa;margin-top:8px;text-align:center">Attention : cela va redémarrer le contrôleur</p>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Bouton de maintenance (aide) -->
+      <div>
+        <div class="settings-section">Bouton de maintenance</div>
+        <div style="font-size:.78rem;color:#888;margin-bottom:10px">Le bouton situé sur le poêle. Son action dépend de la durée d'appui et de l'état du poêle.</div>
+        <div class="mbtn-tbl">
+          <div class="mbtn-hd fault">Poêle en défaut</div>
+          <div class="mbtn-row"><b>Appui bref</b><span>Ouvre la porte du côté en défaut pendant 10 s, pour dégager la bûche coincée.</span></div>
+          <div class="mbtn-row"><b>Appui 3 s</b><span>Valide le défaut : la trappe se referme et les ventilateurs repartent. À faire porte refermée, après l'ouverture ci-dessus.</span></div>
+          <div class="mbtn-hd ok">Poêle hors défaut</div>
+          <div class="mbtn-row"><b>Appui bref</b><span>Aucun effet.</span></div>
+          <div class="mbtn-row"><b>Appui 3 s</b><span>Lance le refroidissement — ou l'annule s'il est déjà en cours.</span></div>
+          <div class="mbtn-row"><b>Appui 60 s</b><span>Redémarre le poêle. Tous les réglages sont conservés.</span></div>
+          <div class="mbtn-row"><b>Appui 70 s</b><span>Réinitialisation d'usine : efface les réglages, la programmation et le Wi-Fi.</span></div>
+          <div class="mbtn-row"><b>Appui 80 s</b><span>Récupération : oublie uniquement le Wi-Fi, garde tous les réglages.</span></div>
+        </div>
+        <div class="mbtn-note">Un bip retentit à chaque palier atteint (1 bip à 3 s, 2 à 60 s, 3 à 70 s, 4 à 80 s) : relâchez au bon nombre de bips. Un bip long signifie que l'action a été refusée. Les appuis longs (60 / 70 / 80 s) fonctionnent aussi pendant un défaut.</div>
       </div>
 
       <div class="divider"></div>
