@@ -25,7 +25,9 @@
     .card-warm{background:#CD853F;color:#fff;border-radius:18px;padding:18px;box-shadow:0 4px 20px rgba(0,0,0,.35)}
 
     /* ── Header ── */
-    .logo{font-size:1.6rem;font-weight:700;color:#949494;text-shadow:0 2px 6px rgba(0,0,0,.5)}
+    .logo{color:#949494;display:flex;align-items:center;
+      filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))}
+    .logo svg{height:24px;width:auto;display:block;fill:currentColor}
     .status-badge{display:flex;align-items:center;gap:7px;font-size:.82rem;color:#fff;
       background:rgba(0,0,0,.3);border-radius:20px;padding:6px 14px;cursor:pointer}
     .status-dot{width:11px;height:11px;border-radius:50%;background:#e74c3c;
@@ -240,7 +242,15 @@
 
   <!-- ── Header ── -->
   <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 2px">
-    <div class="logo">WooDMooD</div>
+    <div class="logo">
+      <svg viewBox="0 0 415.885 92.604" role="img" aria-label="WoodMood">
+        <path d="M7.999,0L39.76,0C45.67,0 53.161,4.791 56.492,10.7L96.634,81.904C99.965,87.813 97.875,92.604 91.966,92.604L60.205,92.604C54.295,92.604 46.804,87.813 43.473,81.904L3.331,10.7C0,4.791 2.09,0 7.999,0Z"/>
+        <path d="M67.658,0L99.589,0C105.499,0 113.001,4.791 116.345,10.7L156.643,81.904C159.987,87.813 157.908,92.604 151.999,92.604L120.068,92.604C114.158,92.604 106.656,87.813 103.312,81.904L63.014,10.7C59.67,4.791 61.749,0 67.658,0Z"/>
+        <path d="M218.053,0L249.885,0C255.794,0 257.879,4.791 254.542,10.7L214.332,81.904C210.995,87.813 203.499,92.604 197.589,92.604L165.757,92.604C159.848,92.604 157.763,87.813 161.1,81.904L201.31,10.7C204.647,4.791 212.143,0 218.053,0Z"/>
+        <path d="M276.453,0L308.272,0C314.182,0 316.265,4.791 312.924,10.7L272.676,81.904C269.336,87.813 261.837,92.604 255.928,92.604L224.108,92.604C218.199,92.604 216.116,87.813 219.457,81.904L259.705,10.7C263.045,4.791 270.543,0 276.453,0Z"/>
+        <path d="M323.848,0L355.634,0C361.543,0 369.037,4.791 372.372,10.7L412.551,81.904C415.885,87.813 413.798,92.604 407.888,92.604L376.102,92.604C370.193,92.604 362.699,87.813 359.365,81.904L319.186,10.7C315.851,4.791 317.938,0 323.848,0Z"/>
+      </svg>
+    </div>
     <div style="display:flex;align-items:center;gap:10px">
       <div class="status-badge" onclick="toggleConnPanel()">
         <div class="status-dot" id="status-dot"></div>
