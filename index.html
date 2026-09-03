@@ -107,7 +107,11 @@
       justify-content:center;padding:8px 6px}
     .main-temp-half+.main-temp-half{border-left:1px solid rgba(255,255,255,.25)}
     .wanted-controls{display:flex;align-items:center;gap:10px}
-    #room-val{font-size:2.6rem;font-weight:700;line-height:1;min-width:70px;text-align:center}
+    #room-val{font-size:2.6rem;font-weight:700;line-height:1;min-width:70px;text-align:center;
+      transition:color .25s ease,opacity .25s ease}
+    /* Grisé quand c'est la programmation qui pilote le niveau (room_src="sched").
+       Un réglage manuel — permanent ou temporaire — reste en pleine teinte. */
+    #room-val.sched-driven{opacity:.45}
     .temp-big{font-size:2.6rem;font-weight:700;line-height:1}
     .temp-small-label{font-size:.65rem;opacity:.65;margin-top:6px;line-height:1.35;
       text-transform:uppercase;letter-spacing:.04em}
@@ -344,7 +348,7 @@
       <div class="main-temp-half">
         <div class="wanted-controls">
           <button class="adj-btn" onclick="adjustRoom(-1)">−</button>
-          <div id="room-val">T3</div>
+          <div id="room-val">T1</div>
           <button class="adj-btn" onclick="adjustRoom(+1)">+</button>
         </div>
         <div class="temp-small-label">Température souhaitée</div>
@@ -714,7 +718,7 @@ const RELAY_HEADERS = {
 let cfg              = JSON.parse(localStorage.getItem(LS) || '{}');
 let client           = null;
 let prefix           = '';
-let roomTemp         = 20;
+let roomTemp         = 18;   // T1 par défaut (= consigne 275 °C côté poêle)
 let lastHbTime       = 0;
 let hbTimer          = null;
 let offlineTimer     = null;
@@ -1095,6 +1099,17 @@ function applyFull(d) {
       localStorage.setItem('woodmood_room_temp', roomTemp);
     }
   }
+  // Le poêle dit AUSSI d'où vient le niveau affiché : "sched" (la courbe le
+  // pilote), "override" (réglage temporaire de l'utilisateur, jusqu'au prochain
+  // créneau de 2 h) ou "manual" (pas de programmation). Seul "sched" est grisé.
+  // Pendant les ~4 s d'attente de confirmation d'un appui +/-, on force la
+  // pleine teinte : le poêle rapporte encore "sched" le temps de traiter la
+  // commande, et l'alternance gris/blanc clignoterait.
+  if (d.room_src !== undefined) {
+    const rv = document.getElementById('room-val');
+    if (rv) rv.classList.toggle('sched-driven',
+                                d.room_src === 'sched' && !isLocked('room_temp'));
+  }
   if (d.system_active !== undefined) sysActive = !!d.system_active;
   if (d.fault !== undefined) setFault(d.fault, d.fault_side, d.fault_ready);
   if (d.joint_active !== undefined) {
@@ -1449,8 +1464,11 @@ function publish(subtopic, payload) {
 function mapSide(s) { return SWAP_SIDES ? (s === 'l' ? 'r' : 'l') : s; }
 
 function adjustRoom(delta) {
-  roomTemp = Math.min(23, Math.max(18, (isNaN(roomTemp) ? 20 : roomTemp) + delta));
+  roomTemp = Math.min(23, Math.max(18, (isNaN(roomTemp) ? 18 : roomTemp) + delta));
   document.getElementById('room-val').textContent = tempToLabel(roomTemp);
+  // Le niveau redevient « à moi » tout de suite ; si la programmation est
+  // active le poêle en fera un réglage temporaire jusqu'au prochain créneau.
+  document.getElementById('room-val').classList.remove('sched-driven');
   localStorage.setItem('woodmood_room_temp', roomTemp);
   lockField('room_temp', roomTemp); // garde l'affichage jusqu'à confirmation du firmware
   publish('cmd/room_temp', roomTemp);
