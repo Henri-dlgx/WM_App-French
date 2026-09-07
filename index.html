@@ -618,16 +618,16 @@
         <div style="font-size:.78rem;color:#888;margin-bottom:10px">Le bouton situé sur le poêle. Son action dépend de la durée d'appui et de l'état du poêle.</div>
         <div class="mbtn-tbl">
           <div class="mbtn-hd fault">Poêle en défaut</div>
-          <div class="mbtn-row"><b>Appui bref</b><span>Ouvre la porte du côté en défaut pendant 10 s, pour dégager la bûche coincée.</span></div>
-          <div class="mbtn-row"><b>Appui 3 s</b><span>Valide le défaut : la trappe se referme et les ventilateurs repartent. À faire porte refermée, après l'ouverture ci-dessus.</span></div>
+          <div class="mbtn-row"><b>Appui bref</b><span>Ouvre la porte du côté en défaut pendant 10 s, pour dégager la bûche coincée. Répétable : 2 bips courts = porte libérée, un bip long = refusé (moteur encore en mouvement, réessayez dans un instant).</span></div>
+          <div class="mbtn-row"><b>Appui 3 s</b><span>Valide le défaut : la trappe se referme et les ventilateurs repartent. À faire porte de chargement refermée, après avoir ouvert la porte au moins une fois et attendu les 10 s.</span></div>
+          <div class="mbtn-row"><b>Appui 30 s</b><span>Redémarre le poêle. Tous les réglages sont conservés.</span></div>
           <div class="mbtn-hd ok">Poêle hors défaut</div>
-          <div class="mbtn-row"><b>Appui bref</b><span>Aucun effet.</span></div>
+          <div class="mbtn-row"><b>Appui bref</b><span>Aucun effet — sauf juste après une récupération de compte lancée depuis le portail Wi-Fi (voir ci-dessous).</span></div>
           <div class="mbtn-row"><b>Appui 3 s</b><span>Lance le refroidissement — ou l'annule s'il est déjà en cours.</span></div>
-          <div class="mbtn-row"><b>Appui 60 s</b><span>Redémarre le poêle. Tous les réglages sont conservés.</span></div>
-          <div class="mbtn-row"><b>Appui 70 s</b><span>Réinitialisation d'usine : efface les réglages, la programmation et le Wi-Fi.</span></div>
-          <div class="mbtn-row"><b>Appui 80 s</b><span>Récupération : oublie uniquement le Wi-Fi, garde tous les réglages.</span></div>
+          <div class="mbtn-row"><b>Appui 10 s</b><span>Redémarre le poêle. Tous les réglages sont conservés.</span></div>
+          <div class="mbtn-row"><b>Appui 20 s</b><span>Réinitialisation d'usine : efface les réglages, la programmation et le Wi-Fi, puis redémarre sur le point d'accès de configuration.</span></div>
         </div>
-        <div class="mbtn-note">Un bip retentit à chaque palier atteint (1 bip à 3 s, 2 à 60 s, 3 à 70 s, 4 à 80 s) : relâchez au bon nombre de bips. Un bip long signifie que l'action a été refusée. Les appuis longs (60 / 70 / 80 s) fonctionnent aussi pendant un défaut.</div>
+        <div class="mbtn-note">Un bip retentit à chaque palier atteint (1 bip au 1<sup>er</sup>, 2 au 2<sup>e</sup>, 3 au 3<sup>e</sup>) : relâchez au bon nombre de bips. Un bip long signifie que l'action a été refusée. Les paliers sont figés au début de l'appui : si le poêle est en défaut quand vous appuyez, ce sont les durées « en défaut » qui s'appliquent jusqu'au relâchement. En défaut, la réinitialisation d'usine est volontairement inaccessible : effacer le Wi-Fi rendrait le poêle injoignable au pire moment.<br><br><b>Récupération de compte</b> (mot de passe de l'application oublié) : connectez-vous au point d'accès « WoodMood-Setup », utilisez la carte de récupération, puis confirmez par un appui bref sur le bouton dans les 2 minutes. Le poêle réinitialise alors le mot de passe et redémarre.</div>
       </div>
 
       <div class="divider"></div>
