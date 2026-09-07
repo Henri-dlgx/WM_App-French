@@ -41,6 +41,12 @@
     /* ── Connection panel ── */
     .conn-input{padding:9px 12px;border:1px solid #d0b08a;border-radius:8px;font-size:.9rem;width:100%}
     .conn-input:focus{outline:none;border-color:#8B4513}
+    .conn-known{display:none;font-size:.84rem;color:#5a3015;background:#f9f5f1;
+      border:1px solid #e6d6c4;border-radius:8px;padding:9px 11px}
+    .conn-known.show{display:block}
+    .conn-known b{color:#8B4513}
+    .conn-edit{color:#8a7a6c;text-decoration:underline;cursor:pointer;margin-left:6px;
+      font-size:.78rem}
 
     /* ── System state button ── */
     .sys-btn{width:100%;border:none;border-radius:12px;font-size:1rem;font-weight:700;
@@ -311,9 +317,14 @@
   <div class="card" id="conn-card">
     <div class="section-title">Connexion au courtier</div>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <input class="conn-input" id="cfg-serial" placeholder="Numéro de série  ex. JJQF9D"
-             autocapitalize="characters" autocorrect="off" spellcheck="false"/>
-      <input class="conn-input" id="cfg-pass"   placeholder="Mot de passe" type="password"/>
+      <div class="conn-known" id="conn-known">
+        Poêle <b id="conn-known-serial">—</b> · identifiants enregistrés
+        <span class="conn-edit" onclick="editCreds()">Modifier</span>
+      </div>
+      <div id="conn-fields" style="display:flex;flex-direction:column;gap:8px">
+        <input class="conn-input" id="cfg-serial" placeholder="Numéro de série  ex. JJQF9D"/>
+        <input class="conn-input" id="cfg-pass"   placeholder="Mot de passe" type="password"/>
+      </div>
       <div class="agree-changed" id="agree-changed">
         Les conditions d'utilisation ont été mises à jour. Merci de les relire et de
         les accepter pour vous reconnecter.
@@ -791,6 +802,10 @@ let agreeAccepted    = JSON.parse(localStorage.getItem(LS_AGREE) || 'null');
 let agreeLive        = null;              // version publiée ; null = pas encore lue
 let agreeUrl         = AGREEMENT_URL;     // écrasée par le champ `url` de version.json
 let agreeOpened      = false;             // conditions ouvertes pendant cette session
+// Identifiants déjà enregistrés et masqués : accepter les conditions ne doit pas
+// obliger à retaper un mot de passe qui fonctionnait déjà. Voir renderConnCard().
+let credsLocked      = false;
+let credsUnlocked    = false;            // l'utilisateur a demandé à les modifier
 let client           = null;
 let prefix           = '';
 let roomTemp         = 18;   // T1 par défaut (= consigne 275 °C côté poêle)
@@ -891,9 +906,6 @@ window.addEventListener('load', () => {
   const savedRoom = parseInt(localStorage.getItem('woodmood_room_temp'));
   if (savedRoom >= 18 && savedRoom <= 23) roomTemp = savedRoom;
   if (cfg.pass && cfg.serial) {
-    // Rattrape aussi un numéro de série enregistré en minuscules par une
-    // version précédente : fillForm() le réaffiche corrigé.
-    cfg.serial = normalizeSerial(cfg.serial);
     cfg.user = cfg.serial + '-app';
     fillForm();
     // Conditions d'utilisation : on se connecte immédiatement sur la version
@@ -917,7 +929,31 @@ window.addEventListener('load', () => {
 function fillForm() {
   document.getElementById('cfg-serial').value = cfg.serial || '';
   document.getElementById('cfg-pass').value   = cfg.pass   || '';
+  renderConnCard();
   refreshAgreementUi();
+}
+
+// Un utilisateur déjà configuré ne doit RIEN retaper pour accepter les
+// conditions. Le panneau ne réaffiche donc ses identifiants que s'il demande
+// explicitement à les changer.
+//
+// Ce n'est pas qu'une commodité. Un champ « mot de passe » visible attire le
+// gestionnaire de mots de passe du navigateur, qui remplace volontiers la
+// valeur pré-remplie par une autre entrée enregistrée pour le même domaine. Le
+// courtier refuse alors la connexion en quelques dizaines de millisecondes et
+// l'application affiche « déconnecté » : de l'extérieur, cela ressemble
+// exactement à un poêle en panne. Le mot de passe qui fonctionne est déjà dans
+// localStorage — il n'y a aucune raison de le faire transiter par un champ.
+function renderConnCard() {
+  credsLocked = !!(cfg.serial && cfg.pass) && !credsUnlocked;
+  document.getElementById('conn-fields').style.display = credsLocked ? 'none' : 'flex';
+  document.getElementById('conn-known').classList.toggle('show', credsLocked);
+  if (credsLocked) document.getElementById('conn-known-serial').textContent = cfg.serial;
+}
+
+function editCreds() {
+  credsUnlocked = true;
+  renderConnCard();
 }
 
 function toggleConnPanel() {
@@ -1039,31 +1075,15 @@ function refreshAgreementUi() {
 // ============================================================
 // CONNECTION
 // ============================================================
-// Le numéro de série est recopié à la main depuis la carte livrée avec le poêle.
-// Côté EMQX, le nom d'utilisateur ET le filtre de topic sont sensibles à la
-// casse : « afnmu3 » donne l'utilisateur « afnmu3-app » et le préfixe
-// « WoodMoodafnmu3 », que le courtier refuse — sans aucun message disant
-// pourquoi. L'utilisateur voit seulement « déconnecté » et conclut que son mot
-// de passe est faux ou que le poêle est en panne.
-//
-// Ce n'est pas un cas d'école : les claviers iOS et Android mettent par défaut
-// une majuscule à la PREMIÈRE lettre seulement, donc taper la carte donne
-// naturellement « Afnmu3 ». On enlève aussi les espaces (un numéro de série
-// n'en contient jamais), mais rien d'autre : une saisie réellement fausse doit
-// continuer à échouer visiblement plutôt que d'être « corrigée » en silence.
-//
-// Sans risque pour les connexions existantes : tous les numéros de série émis
-// sont alphanumériques majuscules.
-function normalizeSerial(raw) {
-  return String(raw || '').replace(/\s+/g, '').toUpperCase();
-}
-
 function saveAndConnect() {
   cfg.broker = MQTT_BROKER;
   cfg.port   = MQTT_PORT;
-  cfg.serial = normalizeSerial(document.getElementById('cfg-serial').value);
+  // Champs masqués = on garde les identifiants enregistrés tels quels.
+  if (!credsLocked) {
+    cfg.serial = document.getElementById('cfg-serial').value.trim();
+    cfg.pass   = document.getElementById('cfg-pass').value.trim();
+  }
   cfg.user   = cfg.serial + '-app';
-  cfg.pass   = document.getElementById('cfg-pass').value.trim();
   if (!cfg.pass || !cfg.serial) { alert('Veuillez remplir tous les champs'); return; }
   // Le bouton est déjà désactivé tant que la case n'est pas cochée ; ce garde-fou
   // couvre le cas où la fonction serait appelée autrement (clavier, console).
