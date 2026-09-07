@@ -311,7 +311,8 @@
   <div class="card" id="conn-card">
     <div class="section-title">Connexion au courtier</div>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <input class="conn-input" id="cfg-serial" placeholder="Numéro de série  ex. JJQF9D"/>
+      <input class="conn-input" id="cfg-serial" placeholder="Numéro de série  ex. JJQF9D"
+             autocapitalize="characters" autocorrect="off" spellcheck="false"/>
       <input class="conn-input" id="cfg-pass"   placeholder="Mot de passe" type="password"/>
       <div class="agree-changed" id="agree-changed">
         Les conditions d'utilisation ont été mises à jour. Merci de les relire et de
@@ -890,6 +891,9 @@ window.addEventListener('load', () => {
   const savedRoom = parseInt(localStorage.getItem('woodmood_room_temp'));
   if (savedRoom >= 18 && savedRoom <= 23) roomTemp = savedRoom;
   if (cfg.pass && cfg.serial) {
+    // Rattrape aussi un numéro de série enregistré en minuscules par une
+    // version précédente : fillForm() le réaffiche corrigé.
+    cfg.serial = normalizeSerial(cfg.serial);
     cfg.user = cfg.serial + '-app';
     fillForm();
     // Conditions d'utilisation : on se connecte immédiatement sur la version
@@ -1035,10 +1039,29 @@ function refreshAgreementUi() {
 // ============================================================
 // CONNECTION
 // ============================================================
+// Le numéro de série est recopié à la main depuis la carte livrée avec le poêle.
+// Côté EMQX, le nom d'utilisateur ET le filtre de topic sont sensibles à la
+// casse : « afnmu3 » donne l'utilisateur « afnmu3-app » et le préfixe
+// « WoodMoodafnmu3 », que le courtier refuse — sans aucun message disant
+// pourquoi. L'utilisateur voit seulement « déconnecté » et conclut que son mot
+// de passe est faux ou que le poêle est en panne.
+//
+// Ce n'est pas un cas d'école : les claviers iOS et Android mettent par défaut
+// une majuscule à la PREMIÈRE lettre seulement, donc taper la carte donne
+// naturellement « Afnmu3 ». On enlève aussi les espaces (un numéro de série
+// n'en contient jamais), mais rien d'autre : une saisie réellement fausse doit
+// continuer à échouer visiblement plutôt que d'être « corrigée » en silence.
+//
+// Sans risque pour les connexions existantes : tous les numéros de série émis
+// sont alphanumériques majuscules.
+function normalizeSerial(raw) {
+  return String(raw || '').replace(/\s+/g, '').toUpperCase();
+}
+
 function saveAndConnect() {
   cfg.broker = MQTT_BROKER;
   cfg.port   = MQTT_PORT;
-  cfg.serial = document.getElementById('cfg-serial').value.trim();
+  cfg.serial = normalizeSerial(document.getElementById('cfg-serial').value);
   cfg.user   = cfg.serial + '-app';
   cfg.pass   = document.getElementById('cfg-pass').value.trim();
   if (!cfg.pass || !cfg.serial) { alert('Veuillez remplir tous les champs'); return; }
