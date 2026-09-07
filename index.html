@@ -171,6 +171,34 @@
       background:#f9f5f1;border-radius:10px;font-size:.88rem;color:#555}
     .maint-lbl{flex:1}
     .maint-val{font-weight:700;color:#8B4513;white-space:nowrap}
+    /* Un élément d'entretien = la ligne résumé + le volet d'édition, repliés
+       dans un même bloc pour qu'ils restent visuellement solidaires. */
+    .maint-item{background:#f9f5f1;border-radius:10px;overflow:hidden}
+    /* Le libellé prend toute la largeur : sur un écran de téléphone, « Remplacer
+       le joint de porte » + « il y a 34 jours (30/07/2026) » + deux boutons ne
+       tiennent pas sur une ligne, et le dernier bouton sortait de la carte. */
+    .maint-item .maint-row{background:none;border-radius:0;flex-wrap:wrap;gap:6px 8px}
+    .maint-item .maint-lbl{flex:1 1 100%;font-weight:600;color:#4a4038}
+    .maint-item .maint-val{flex:1 1 auto;min-width:0;white-space:normal}
+    .maint-item .maint-row .btn{flex:0 0 auto}
+    .maint-note{padding:0 12px 9px;font-size:.76rem;color:#7a6a5c;font-style:italic;
+      word-break:break-word}
+    .maint-note:empty{display:none}
+    .maint-edit{display:none;flex-direction:column;gap:7px;padding:0 12px 11px;
+      border-top:1px solid #efe3d6;margin-top:2px;padding-top:10px}
+    .maint-edit.show{display:flex}
+    .maint-edit label{font-size:.72rem;font-weight:700;color:#8B4513;
+      text-transform:uppercase;letter-spacing:.05em}
+    .maint-edit input{width:100%;box-sizing:border-box;padding:8px 10px;
+      border:1px solid #d0b08a;border-radius:8px;font-size:.86rem;
+      font-family:inherit;color:#5a3015;background:#fff}
+    .maint-edit input:focus{outline:none;border-color:#8B4513}
+    .maint-edit-actions{display:flex;gap:8px}
+    .maint-edit-actions .btn{flex:1}
+    /* .btn-cancel global est pensé pour la bannière brune (blanc translucide) :
+       illisible sur cette carte claire, on le redéfinit localement. */
+    .maint-edit-actions .btn-cancel{background:#fff;color:#8a7a6c;border:1px solid #d9c8b5}
+    .maint-hint{font-size:.7rem;color:#8a7a6c;margin-top:-2px}
     /* House params */
     .param-row{display:flex;align-items:center;gap:8px}
     .param-row label{font-size:.82rem;color:#555;white-space:nowrap}
@@ -587,18 +615,63 @@
       <div>
         <div class="settings-section">Rappels de maintenance</div>
         <div class="gap-col">
-          <div class="maint-row">
-            <span class="maint-lbl">Remplacer le joint</span>
-            <span class="maint-val" id="joint-days">— jours</span>
-            <button class="btn btn-brown btn-sm" style="flex:none" onclick="changerJoint()">Changer le joint</button>
+          <div class="maint-item">
+            <div class="maint-row">
+              <span class="maint-lbl">Remplacer le joint</span>
+              <span class="maint-val" id="joint-days">—</span>
+              <button class="btn btn-brown btn-sm" style="flex:none" onclick="changerJoint()">Changer le joint</button>
+              <button class="btn btn-tan btn-sm" style="flex:none" id="joint-edit-btn" onclick="maintEdit('joint')">Modifier</button>
+            </div>
+            <div class="maint-note" id="joint-note"></div>
+            <div class="maint-edit" id="joint-edit">
+              <label for="joint-date">Date de l'intervention</label>
+              <input type="date" id="joint-date">
+              <label for="joint-txt">Note (facultatif)</label>
+              <input type="text" id="joint-txt" maxlength="64" placeholder="Ex. : Ramoneur Dupont, certificat n°4471">
+              <div class="maint-hint">Enregistré dans la mémoire permanente du poêle.</div>
+              <div class="maint-edit-actions">
+                <button class="btn btn-cancel btn-sm" onclick="maintCancel('joint')">Annuler</button>
+                <button class="btn btn-brown btn-sm" onclick="maintSave('joint')">Enregistrer</button>
+              </div>
+            </div>
           </div>
-          <div class="maint-row">
-            <span class="maint-lbl">Ramonage</span>
-            <span class="maint-val" id="ramon-days">— jours depuis le dernier</span>
+          <div class="maint-item">
+            <div class="maint-row">
+              <span class="maint-lbl">Ramonage</span>
+              <span class="maint-val" id="ramon-days">—</span>
+              <button class="btn btn-tan btn-sm" style="flex:none" id="ramon-edit-btn" onclick="maintEdit('ramon')">Modifier</button>
+            </div>
+            <div class="maint-note" id="ramon-note"></div>
+            <div class="maint-edit" id="ramon-edit">
+              <label for="ramon-date">Date de l'intervention</label>
+              <input type="date" id="ramon-date">
+              <label for="ramon-txt">Note (facultatif)</label>
+              <input type="text" id="ramon-txt" maxlength="64" placeholder="Ex. : Ramoneur Dupont, certificat n°4471">
+              <div class="maint-hint">Enregistré dans la mémoire permanente du poêle.</div>
+              <div class="maint-edit-actions">
+                <button class="btn btn-cancel btn-sm" onclick="maintCancel('ramon')">Annuler</button>
+                <button class="btn btn-brown btn-sm" onclick="maintSave('ramon')">Enregistrer</button>
+              </div>
+            </div>
           </div>
-          <div class="maint-row">
-            <span class="maint-lbl">Remplacer le joint de porte</span>
-            <span class="maint-val" id="seal-days">— jours</span>
+          <div class="maint-item">
+            <div class="maint-row">
+              <span class="maint-lbl">Remplacer le joint de porte</span>
+              <span class="maint-val" id="seal-days">—</span>
+              <button class="btn btn-tan btn-sm" style="flex:none" id="seal-edit-btn" onclick="maintEdit('seal')">Modifier</button>
+            </div>
+            <div class="maint-note" id="seal-note"></div>
+            <div class="maint-edit" id="seal-edit">
+              <label for="seal-date">Date de l'intervention</label>
+              <input type="date" id="seal-date">
+              <label for="seal-txt">Note (facultatif)</label>
+              <input type="text" id="seal-txt" maxlength="64" placeholder="Ex. : Ramoneur Dupont, certificat n°4471">
+              <div class="maint-hint">Enregistré dans la mémoire permanente du poêle.</div>
+              <div class="maint-edit-actions">
+                <button class="btn btn-cancel btn-sm" onclick="maintCancel('seal')">Annuler</button>
+                <button class="btn btn-brown btn-sm" onclick="maintSave('seal')">Enregistrer</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1299,9 +1372,12 @@ function onMessage(topic, payloadBuf) {
     if (!isLocked('system_state')) applySystemState(payload);
     return;
   }
-  if (sub === 'status/maint_joint')  { document.getElementById('joint-days').textContent = payload + ' jours'; return; }
-  if (sub === 'status/maint_ramon')  { document.getElementById('ramon-days').textContent = payload + ' jours depuis le dernier'; return; }
-  if (sub === 'status/maint_seal')   { document.getElementById('seal-days').textContent  = payload + ' jours'; return; }
+  // Dates d'entretien — publiées « retained » par le firmware sur
+  // status/maintenance (epochs Unix + notes), donc reçues dès la connexion.
+  if (sub === 'status/maintenance') {
+    try { applyMaintenance(JSON.parse(payload)); } catch(e) {}
+    return;
+  }
 
   if (sub === 'status/heap') {
     try {
@@ -1380,9 +1456,6 @@ function applyFull(d) {
       + ' <span style="opacity:.55">pwd: &lt;MQTT password&gt;</span>';
   }
   if (d.heap_free !== undefined) applyHeap(d.heap_free, d.heap_min || 0, d.heap_max_alloc || 0);
-  if (d.maint_joint !== undefined) document.getElementById('joint-days').textContent = d.maint_joint + ' jours';
-  if (d.maint_ramon !== undefined) document.getElementById('ramon-days').textContent = d.maint_ramon + ' jours depuis le dernier';
-  if (d.maint_seal  !== undefined) document.getElementById('seal-days').textContent  = d.maint_seal  + ' jours';
   // Récupère l'état activé/désactivé persisté par le firmware pour que tous les
   // téléphones connectés convergent vers lui, plutôt que chaque app ne fasse
   // confiance qu'à son propre bouton local.
@@ -1927,6 +2000,132 @@ function saveAlerts() {
 // ============================================================
 // PARAMÈTRES — MAINTENANCE
 // ============================================================
+// Dates de dernier entretien (ramonage, joints). Le firmware les conserve en
+// mémoire NVS — elles survivent aux coupures de courant et aux mises à jour —
+// et les republie « retained » sur status/maintenance, donc une app qui vient
+// de se lancer les reçoit sans rien demander.
+//
+// L'utilisateur peut saisir une date PASSÉE : un ramonage se déclare souvent
+// plusieurs semaines après coup. La commande est cmd/maint_done avec la charge
+// utile « item:epoch:note » (voir MQTTConfig.h côté firmware).
+
+// clé UI  →  { firmware: nom d'élément attendu par le firmware,
+//              json: clé de l'epoch dans status/maintenance }
+const MAINT_ITEMS = {
+  joint: { firmware: 'joint',    json: 'replace_joint' },
+  ramon: { firmware: 'ramonage', json: 'ramonage'      },
+  seal:  { firmware: 'seal',     json: 'door_seal'     }
+};
+
+// Dernier état reçu du poêle, par clé UI : { epoch, note }. Sert à pré-remplir
+// le formulaire d'édition et à ne pas perdre la note quand on ne change que la date.
+let maintState = { joint:{epoch:0,note:''}, ramon:{epoch:0,note:''}, seal:{epoch:0,note:''} };
+
+// epoch (s) → « jj/mm/aaaa » pour l'input type=date (format ISO exigé : aaaa-mm-jj)
+function epochToInputDate(epoch) {
+  const d = new Date(epoch * 1000);
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
+// « aaaa-mm-jj » → epoch (s). On vise MIDI heure locale, pas minuit : minuit UTC
+// dans un fuseau à l'est décale la date d'un jour à l'affichage.
+function inputDateToEpoch(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || '');
+  if (!m) return 0;
+  return Math.floor(new Date(+m[1], +m[2] - 1, +m[3], 12, 0, 0).getTime() / 1000);
+}
+
+function daysSince(epoch) {
+  return Math.max(0, Math.floor((Date.now() / 1000 - epoch) / 86400));
+}
+
+// Applique le JSON status/maintenance à l'écran Paramètres.
+function applyMaintenance(m) {
+  for (const key in MAINT_ITEMS) {
+    const cfg   = MAINT_ITEMS[key];
+    const epoch = Number(m[cfg.json]) || 0;
+    const note  = (m[cfg.json + '_note'] || '') + '';
+    maintState[key] = { epoch: epoch, note: note };
+
+    const valEl  = document.getElementById(key + '-days');
+    const noteEl = document.getElementById(key + '-note');
+    if (valEl) {
+      if (!epoch) {
+        valEl.textContent = 'jamais enregistré';
+      } else {
+        const n = daysSince(epoch);
+        const when = n === 0 ? "aujourd'hui" : (n === 1 ? 'hier' : 'il y a ' + n + ' jours');
+        valEl.textContent = when + ' (' + new Date(epoch * 1000).toLocaleDateString('fr-FR') + ')';
+      }
+    }
+    if (noteEl) noteEl.textContent = note;
+
+    // Ne pas écraser ce que l'utilisateur est en train de taper : le poêle peut
+    // republier status/maintenance (reconnexion, autre téléphone) pendant la saisie.
+    const editEl = document.getElementById(key + '-edit');
+    if (editEl && !editEl.classList.contains('show')) fillMaintForm(key);
+  }
+}
+
+function fillMaintForm(key) {
+  const st   = maintState[key];
+  const dEl  = document.getElementById(key + '-date');
+  const tEl  = document.getElementById(key + '-txt');
+  if (dEl) {
+    dEl.max   = epochToInputDate(Math.floor(Date.now() / 1000));  // pas de date future
+    dEl.value = st.epoch ? epochToInputDate(st.epoch) : dEl.max;  // par défaut : aujourd'hui
+  }
+  if (tEl) tEl.value = st.note;
+}
+
+function maintEdit(key) {
+  const editEl = document.getElementById(key + '-edit');
+  const btnEl  = document.getElementById(key + '-edit-btn');
+  if (!editEl) return;
+  const opening = !editEl.classList.contains('show');
+  if (opening) fillMaintForm(key);
+  editEl.classList.toggle('show', opening);
+  if (btnEl) btnEl.textContent = opening ? 'Fermer' : 'Modifier';
+}
+
+function maintCancel(key) {
+  const editEl = document.getElementById(key + '-edit');
+  const btnEl  = document.getElementById(key + '-edit-btn');
+  if (editEl) editEl.classList.remove('show');
+  if (btnEl)  btnEl.textContent = 'Modifier';
+  fillMaintForm(key);                       // rejeter les saisies non enregistrées
+}
+
+function maintSave(key) {
+  const cfg = MAINT_ITEMS[key];
+  if (!cfg) return;
+  const epoch = inputDateToEpoch(document.getElementById(key + '-date').value);
+  if (!epoch) { alert('Choisissez une date valide.'); return; }
+  if (epoch > Date.now() / 1000 + 86400) {
+    alert("La date ne peut pas être dans le futur."); return;
+  }
+
+  // Les deux-points séparent item/date/note côté firmware : la note est le reste
+  // de la charge utile, mais on retire les retours à la ligne qui casseraient
+  // le JSON republié.
+  const note = document.getElementById(key + '-txt').value.replace(/[\r\n]+/g, ' ').trim().slice(0, 64);
+  publish('cmd/maint_done', cfg.firmware + ':' + epoch + ':' + note);
+
+  // Écho optimiste : le poêle republiera status/maintenance dans la foulée et
+  // écrasera ceci avec ce qu'il a réellement gardé en NVS.
+  maintState[key] = { epoch: epoch, note: note };
+  applyMaintenance({
+    [cfg.json]: epoch, [cfg.json + '_note']: note,
+    ...Object.fromEntries(Object.entries(MAINT_ITEMS)
+      .filter(([k]) => k !== key)
+      .flatMap(([k, c]) => [[c.json, maintState[k].epoch], [c.json + '_note', maintState[k].note]]))
+  });
+
+  maintCancel(key);
+  showToast('Entretien enregistré');
+}
+
 // Changer le joint : opération à froid, poêle à l'arrêt — sans rapport avec une
 // panne. Conditions : système en veille ET température ≤ 40°. L'utilisateur choisit
 // le côté, le firmware entrouvre la trappe + déverrouille la porte, puis attend
