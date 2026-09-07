@@ -196,6 +196,38 @@
     .log-modal-actions{display:flex;gap:10px}
     .log-modal-actions .btn{flex:1}
 
+    /* ── Conditions d'utilisation ── */
+    /* Le grisé est volontairement limité au bouton Connecter : d'autres boutons
+       de l'application se désactivent temporairement et ont déjà leur propre
+       apparence, on ne veut pas les repeindre au passage. */
+    #conn-btn:disabled{background:#cbc0b4;color:#f2ece6;cursor:not-allowed;filter:none}
+    .agree-link{display:block;text-align:center;font-size:.86rem;font-weight:600;
+      color:#8B4513;background:#f9f5f1;border:1px solid #e6d6c4;border-radius:8px;
+      padding:9px 10px;cursor:pointer;user-select:none}
+    .agree-row{display:flex;align-items:flex-start;gap:9px;font-size:.82rem;
+      color:#5a3015;line-height:1.4;cursor:pointer}
+    .agree-row input{width:19px;height:19px;flex:none;margin-top:1px;accent-color:#8B4513}
+    .agree-row input:disabled{cursor:not-allowed}
+    .agree-row input:disabled ~ span{color:#a89a8c}
+    .agree-changed{display:none;background:#fff4e0;border-left:4px solid #e67e22;
+      border-radius:0 8px 8px 0;padding:9px 11px;font-size:.8rem;color:#8a5a20;line-height:1.4}
+    .agree-changed.show{display:block}
+    /* Modale conditions : quasi plein écran — c'est un document à lire, pas une
+       boîte de dialogue. L'affichage dans un cadre évite de sortir de l'app
+       installée sur l'écran d'accueil (sur iOS, un lien externe bascule sur
+       Safari et l'utilisateur ne revient pas toujours). */
+    #agree-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);
+      z-index:160;align-items:center;justify-content:center;padding:14px}
+    #agree-modal.show{display:flex}
+    .agree-box{background:#fff;border-radius:18px;width:100%;max-width:520px;
+      height:100%;max-height:86vh;display:flex;flex-direction:column;overflow:hidden}
+    .agree-head{display:flex;align-items:center;justify-content:space-between;gap:10px;
+      padding:13px 16px;border-bottom:1px solid #f0e0d0}
+    .agree-head h3{color:#8B4513;font-size:.95rem}
+    .agree-head a{font-size:.74rem;color:#8a7a6c;white-space:nowrap}
+    .agree-frame{flex:1;width:100%;border:none;background:#f9f5f1}
+    .agree-foot{padding:12px 16px;border-top:1px solid #f0e0d0}
+
     /* ── Misc ── */
     .section-title{font-size:.75rem;font-weight:700;color:#8B4513;text-transform:uppercase;
       letter-spacing:.07em;margin-bottom:12px}
@@ -281,7 +313,16 @@
     <div style="display:flex;flex-direction:column;gap:8px">
       <input class="conn-input" id="cfg-serial" placeholder="Numéro de série  ex. JJQF9D"/>
       <input class="conn-input" id="cfg-pass"   placeholder="Mot de passe" type="password"/>
-      <button class="btn btn-brown btn-full" onclick="saveAndConnect()">Connecter</button>
+      <div class="agree-changed" id="agree-changed">
+        Les conditions d'utilisation ont été mises à jour. Merci de les relire et de
+        les accepter pour vous reconnecter.
+      </div>
+      <div class="agree-link" id="agree-open" onclick="openAgreement()">📄 Lire les conditions d'utilisation</div>
+      <label class="agree-row">
+        <input type="checkbox" id="agree-box" disabled onchange="refreshAgreementUi()"/>
+        <span id="agree-text">Ouvrez d'abord les conditions ci-dessus</span>
+      </label>
+      <button class="btn btn-brown btn-full" id="conn-btn" onclick="saveAndConnect()" disabled>Connecter</button>
     </div>
   </div>
 
@@ -683,6 +724,22 @@
   </div>
 </div>
 
+<!-- ── Modale conditions d'utilisation ── -->
+<div id="agree-modal" onclick="if(event.target===this)closeAgreement()">
+  <div class="agree-box">
+    <div class="agree-head">
+      <h3>Conditions d'utilisation</h3>
+      <a id="agree-external" href="#" target="_blank" rel="noopener">Ouvrir dans le navigateur ↗</a>
+    </div>
+    <!-- src posé à l'ouverture : l'adresse vient de version.json, et rien ne sert
+         de télécharger le texte à chaque démarrage de l'application. -->
+    <iframe class="agree-frame" id="agree-frame" title="Conditions d'utilisation"></iframe>
+    <div class="agree-foot">
+      <button class="btn btn-brown btn-full" onclick="closeAgreement()">J'ai lu les conditions</button>
+    </div>
+  </div>
+</div>
+
 
 <script>
 // ============================================================
@@ -715,7 +772,24 @@ const RELAY_HEADERS = {
   'Authorization': `Bearer ${RELAY_SECRET}`
 };
 
+// ── Conditions d'utilisation ───────────────────────────────────────
+// Le texte ET son adresse vivent dans le dépôt woodmood-legal (GitHub Pages).
+// L'application ne connaît en dur que l'adresse du fichier de version : les
+// conditions peuvent donc être réécrites, ou déplacées ailleurs, sans jamais
+// republier l'application. AGREEMENT_URL n'est qu'un filet de sécurité si
+// version.json est illisible ou ne porte pas de champ `url`.
+const LS_AGREE          = 'woodmood_agreement';   // {version, url, acceptedAt}
+const AGREEMENT_META    = 'https://henri-dlgx.github.io/woodmood-legal/version.json';
+const AGREEMENT_URL     = 'https://henri-dlgx.github.io/woodmood-legal/conditions.html';
+const AGREEMENT_TIMEOUT = 4000;   // ms — au-delà, on considère le fichier injoignable
+
 let cfg              = JSON.parse(localStorage.getItem(LS) || '{}');
+// Acceptation mémorisée sur CE téléphone (pas par numéro de série) : un foyer
+// qui ressaisit son poêle ne relit pas les conditions pour autant.
+let agreeAccepted    = JSON.parse(localStorage.getItem(LS_AGREE) || 'null');
+let agreeLive        = null;              // version publiée ; null = pas encore lue
+let agreeUrl         = AGREEMENT_URL;     // écrasée par le champ `url` de version.json
+let agreeOpened      = false;             // conditions ouvertes pendant cette session
 let client           = null;
 let prefix           = '';
 let roomTemp         = 18;   // T1 par défaut (= consigne 275 °C côté poêle)
@@ -818,9 +892,19 @@ window.addEventListener('load', () => {
   if (cfg.pass && cfg.serial) {
     cfg.user = cfg.serial + '-app';
     fillForm();
-    document.getElementById('conn-card').style.display = 'none';
-    connect();
+    // Conditions d'utilisation : on se connecte immédiatement sur la version
+    // déjà acceptée, sans attendre le réseau. Placer un aller-retour HTTP devant
+    // chaque démarrage retarderait l'affichage de l'état du poêle tous les jours
+    // pour un contrôle qui ne change qu'exceptionnellement. La vérification
+    // arrive quelques centaines de millisecondes plus tard et referme la porte
+    // si la version a bougé — voir applyAgreementGate().
+    if (agreeAccepted) {
+      document.getElementById('conn-card').style.display = 'none';
+      connect();
+    }
   }
+  refreshAgreementUi();
+  fetchAgreementMeta().then(applyAgreementGate);
   renderBars('left',  0);
   renderBars('right', 0);
   document.getElementById('room-val').textContent = tempToLabel(roomTemp);
@@ -829,12 +913,123 @@ window.addEventListener('load', () => {
 function fillForm() {
   document.getElementById('cfg-serial').value = cfg.serial || '';
   document.getElementById('cfg-pass').value   = cfg.pass   || '';
+  refreshAgreementUi();
 }
 
 function toggleConnPanel() {
   const card = document.getElementById('conn-card');
   card.style.display = card.style.display === 'none' ? '' : 'none';
   if (card.style.display !== 'none') fillForm();
+}
+
+// ============================================================
+// CONDITIONS D'UTILISATION
+// ============================================================
+// Trois états possibles au démarrage, et le troisième est le plus important :
+//   • version lue = version acceptée  → rien à faire
+//   • version lue ≠ version acceptée  → re-acceptation obligatoire
+//   • version ILLISIBLE (hors ligne, Pages en panne, JSON cassé)
+//        → un utilisateur déjà inscrit se connecte normalement sur sa dernière
+//          version acceptée. Une panne de réseau côté GitHub ne doit jamais
+//          empêcher quelqu'un de piloter son poêle : le coût d'un blocage à tort
+//          (un feu qu'on ne surveille plus) est sans commune mesure avec celui
+//          d'une acceptation retardée de quelques heures.
+
+// Ne lève jamais : un échec réseau doit devenir un « je ne sais pas » (null),
+// pas une exception qui casserait la suite du démarrage.
+async function fetchAgreementMeta() {
+  const ctl  = new AbortController();
+  const kill = setTimeout(() => ctl.abort(), AGREEMENT_TIMEOUT);
+  try {
+    // no-store + horodatage : le CDN de GitHub Pages garde volontiers une
+    // ancienne copie, et on veut la version réelle, pas celle du cache.
+    const r = await fetch(AGREEMENT_META + '?t=' + Date.now(),
+                          { cache: 'no-store', signal: ctl.signal });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (!j || typeof j.version !== 'string' || !j.version) return null;   // JSON cassé
+    return j;
+  } catch (e) {
+    console.warn('[CGU] version.json injoignable :', e && e.message);
+    return null;
+  } finally {
+    clearTimeout(kill);
+  }
+}
+
+function applyAgreementGate(meta) {
+  if (meta) {
+    agreeLive = meta.version;
+    // On n'accepte qu'une adresse https explicite : ce champ pilote le `src`
+    // d'un cadre, il ne doit pas pouvoir devenir un javascript: ou un data:.
+    if (typeof meta.url === 'string' && /^https:\/\//.test(meta.url)) agreeUrl = meta.url;
+  }
+  if (agreeLive && agreeAccepted && agreeAccepted.version !== agreeLive) {
+    agreeAccepted = null;
+    localStorage.removeItem(LS_AGREE);
+    agreeOpened   = false;                       // il faut rouvrir le nouveau texte
+    document.getElementById('agree-changed').classList.add('show');
+    disconnect();                                // referme la porte (réaffiche le panneau)
+  }
+  refreshAgreementUi();
+}
+
+// La case ne s'active qu'après une ouverture réelle des conditions. C'est le
+// seul geste qu'on puisse honnêtement constater : le texte est servi par un
+// autre domaine, on ne peut pas savoir jusqu'où il a été fait défiler.
+async function openAgreement() {
+  if (!agreeLive) {                              // première lecture ratée → on retente
+    applyAgreementGate(await fetchAgreementMeta());
+    if (!agreeLive && !agreeAccepted) {
+      showToast('Conditions indisponibles — vérifiez votre connexion');
+      return;
+    }
+  }
+  const url = (agreeAccepted && agreeAccepted.url) || agreeUrl;
+  const f   = document.getElementById('agree-frame');
+  if (f.getAttribute('src') !== url) f.setAttribute('src', url);
+  document.getElementById('agree-external').href = url;
+  document.getElementById('agree-modal').classList.add('show');
+}
+
+function closeAgreement() {
+  document.getElementById('agree-modal').classList.remove('show');
+  agreeOpened = true;
+  refreshAgreementUi();
+}
+
+function refreshAgreementUi() {
+  const box  = document.getElementById('agree-box');
+  const txt  = document.getElementById('agree-text');
+  const link = document.getElementById('agree-open');
+  const btn  = document.getElementById('conn-btn');
+  if (!box || !btn) return;
+
+  const known = !!(agreeLive || agreeAccepted);   // sait-on quel texte faire lire ?
+
+  if (agreeAccepted) {
+    // Déjà accepté : rouvrir le panneau pour changer de numéro de série ne doit
+    // pas obliger à relire un texte inchangé.
+    box.disabled = false;
+    if (!agreeOpened) box.checked = true;
+    txt.textContent  = "J'ai lu et j'accepte les conditions d'utilisation";
+    link.textContent = "\ud83d\udcc4 Relire les conditions d'utilisation";
+  } else if (!known) {
+    box.disabled = true;
+    box.checked  = false;
+    txt.textContent  = 'Conditions momentanément indisponibles';
+    link.textContent = '\u21bb Réessayer de charger les conditions';
+  } else if (!agreeOpened) {
+    box.disabled = true;
+    box.checked  = false;
+    txt.textContent  = 'Ouvrez d\'abord les conditions ci-dessus';
+    link.textContent = "\ud83d\udcc4 Lire les conditions d'utilisation";
+  } else {
+    box.disabled = false;
+    txt.textContent  = "J'ai lu et j'accepte les conditions d'utilisation";
+    link.textContent = "\ud83d\udcc4 Relire les conditions d'utilisation";
+  }
+  btn.disabled = !box.checked;
 }
 
 // ============================================================
@@ -847,7 +1042,20 @@ function saveAndConnect() {
   cfg.user   = cfg.serial + '-app';
   cfg.pass   = document.getElementById('cfg-pass').value.trim();
   if (!cfg.pass || !cfg.serial) { alert('Veuillez remplir tous les champs'); return; }
+  // Le bouton est déjà désactivé tant que la case n'est pas cochée ; ce garde-fou
+  // couvre le cas où la fonction serait appelée autrement (clavier, console).
+  if (!document.getElementById('agree-box').checked) {
+    showToast("Veuillez lire et accepter les conditions d'utilisation");
+    return;
+  }
   localStorage.setItem(LS, JSON.stringify(cfg));
+  agreeAccepted = {
+    version:    agreeLive || (agreeAccepted && agreeAccepted.version) || 'inconnue',
+    url:        agreeUrl,
+    acceptedAt: new Date().toISOString()
+  };
+  localStorage.setItem(LS_AGREE, JSON.stringify(agreeAccepted));
+  document.getElementById('agree-changed').classList.remove('show');
   document.getElementById('conn-card').style.display = 'none';
   connect();
 }
