@@ -24,6 +24,15 @@ async function shouldThrottle(tag) {
   return false;
 }
 
+// ── DÉSACTIVÉ (juil. 2026) ───────────────────────────────────────────────────
+// Les notifications ne passent plus par le web-push : le poêle envoie lui-même
+// ses alertes via ntfy (NtfyNotification.cpp). Ce gestionnaire est neutralisé
+// plutôt que supprimé pour pouvoir revenir en arrière.
+//
+// ATTENTION si vous le réactivez : la regex `liveTag` ci-dessous ne couvre pas
+// le tag 'empty-both' réellement émis par l'app (elle attend 'empty-L'/'empty-R'),
+// donc cette notification-là s'affichait en double quand l'app était ouverte.
+/*
 self.addEventListener('push', event => {
   const data = event.data?.json() ?? {};
   const tag  = data.tag ?? 'woodmood';
@@ -56,7 +65,11 @@ self.addEventListener('push', event => {
     })()
   );
 });
+*/
+// ── fin du bloc push désactivé ──
 
+// Conservé : sans gestionnaire push actif il ne se déclenchera plus, mais il ne
+// coûte rien et évite d'oublier de le remettre si le push revient un jour.
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   const target = event.notification.data?.url ?? (self.location.origin + APP_URL);
