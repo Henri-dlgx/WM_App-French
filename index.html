@@ -75,6 +75,19 @@
     .btn-resolve{background:#27ae60;font-size:1rem;font-weight:700}
     .btn-reopen{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.4);font-size:.82rem}
 
+    /* ── Bannière « Ajoutez une bûche » (chargement manuel) ──
+       Même emplacement que les bannières de défaut et de joint, mais en ambre :
+       ce n'est pas une panne. Le poêle fonctionne normalement, il attend juste
+       que l'utilisateur fasse ce que la machine fait d'habitude. */
+    #reload-banner{display:none;background:#b9770e;color:#fff;border-radius:18px;
+      padding:18px;box-shadow:0 4px 20px rgba(0,0,0,.35)}
+    #reload-banner.show{display:block}
+    .reload-title{font-size:1.05rem;font-weight:700;margin-bottom:6px}
+    .reload-badges{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+    .reload-badge{display:inline-block;background:rgba(255,255,255,.2);border-radius:8px;
+      padding:3px 10px;font-size:.8rem;font-weight:600;letter-spacing:.04em}
+    .reload-msg{font-size:.84rem;opacity:.85}
+
     /* ── Joint (gasket) service banner — same slot as the fault banner ── */
     #joint-banner{display:none;background:#5a3410;color:#fff;border-radius:18px;
       padding:18px;box-shadow:0 4px 20px rgba(0,0,0,.35)}
@@ -85,6 +98,11 @@
     .joint-btn-row{display:flex;gap:8px}
     .joint-btn-row .btn{flex:1}
     .btn-cancel{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4)}
+
+    /* ── Fermeture forcée des trappes — même emplacement que la bannière joint ── */
+    #fclose-banner{display:none;background:#7a2d12;color:#fff;border-radius:18px;
+      padding:18px;box-shadow:0 4px 20px rgba(0,0,0,.35)}
+    #fclose-banner.show{display:block}
 
     /* ── Buttons ── */
     .btn{border:none;border-radius:10px;font-size:.9rem;font-weight:600;
@@ -283,6 +301,30 @@
     .mbtn-row span{color:#666}
     .mbtn-note{font-size:.72rem;color:#999;line-height:1.5;margin-top:8px}
 
+    /* ── Paramètres : blocs repliables + zone avancée ── */
+    .set-fold{background:#f9f5f1;border-radius:10px}
+    .set-fold>summary{list-style:none;cursor:pointer;padding:10px 12px;font-size:.88rem;
+      font-weight:600;color:#4a4038;display:flex;justify-content:space-between;align-items:center}
+    .set-fold>summary::-webkit-details-marker{display:none}
+    .set-fold>summary::after{content:'▼';font-size:.7rem;color:#8B4513;transition:transform .2s}
+    .set-fold[open]>summary::after{transform:rotate(180deg)}
+    .set-fold-body{padding:0 12px 12px}
+    /* ── Notifications ntfy : abonnement depuis l'application téléphone ── */
+    .ntfy-panel{display:none;flex-direction:column;gap:8px;background:#f9f5f1;
+      border-radius:10px;padding:12px}
+    .ntfy-panel.show{display:flex}
+    .ntfy-step{display:flex;gap:8px;align-items:flex-start;font-size:.8rem;color:#5a3015;line-height:1.4}
+    .ntfy-step>b{flex:none;width:20px;height:20px;border-radius:50%;background:#8B4513;color:#fff;
+      font-size:.72rem;display:flex;align-items:center;justify-content:center;margin-top:1px}
+    .ntfy-box{font-size:.78rem;font-family:monospace;word-break:break-all;background:#fff;
+      border:1px solid #e0d2c2;border-radius:8px;padding:8px;color:#5a3015;text-align:center}
+    .ntfy-help{font-size:.75rem;color:#8B4513;text-align:center}
+    .settings-section.danger{color:#dc3545}
+    .danger-zone{border:1px solid #f1b0b7;border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px}
+    .btn-outline-red{background:#fff;color:#dc3545;border:1px solid #dc3545}
+    .btn-outline-red:disabled{opacity:.45;cursor:default;filter:none}
+    .dz-note{font-size:.72rem;color:#999;line-height:1.4;margin:0 0 4px}
+
     /* ── Interrupteur à bascule ── */
     .tgl{position:relative;display:inline-block;width:48px;height:27px;flex-shrink:0}
     .tgl input{opacity:0;width:0;height:0}
@@ -295,8 +337,11 @@
     /* ── Programmation de température ── */
     .sched-pt{cursor:ns-resize}
     .sched-badge{font-size:.62rem;font-weight:700;color:#8B4513;background:rgba(139,69,19,.1);
-      border-radius:20px;padding:1px 7px;margin-top:3px;display:none;letter-spacing:.02em}
+      border-radius:20px;padding:1px 7px;margin-top:3px;display:none;letter-spacing:.02em;white-space:nowrap}
     .sched-badge.active{display:inline-block}
+    .mode-badges{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;margin-top:3px}
+    .mode-badges .sched-badge{margin-top:0}
+    .sched-badge.feed{background:#fff;color:#8B4513;box-shadow:0 1px 3px rgba(0,0,0,.18)}
     .sched-tabs{display:flex;gap:4px;background:#f0e6da;border-radius:9px;padding:3px;margin-bottom:10px}
     .sched-tab{flex:1;border:0;background:transparent;color:#8a6a4f;font-size:.8rem;font-weight:700;
       padding:6px 0;border-radius:7px;cursor:pointer;transition:.2s;font-family:inherit}
@@ -317,6 +362,7 @@
     .heap-bar-wrap{flex:1;background:rgba(255,255,255,.18);border-radius:4px;height:5px;overflow:hidden}
     .heap-bar-fill{height:100%;border-radius:4px;transition:width .6s,background .6s;background:#2ecc71;width:0%}
     .heap-val{font-weight:700;white-space:nowrap;min-width:48px;text-align:right}
+
   </style>
 </head>
 <body>
@@ -350,7 +396,8 @@
         <span class="conn-edit" onclick="editCreds()">Modifier</span>
       </div>
       <div id="conn-fields" style="display:flex;flex-direction:column;gap:8px">
-        <input class="conn-input" id="cfg-serial" placeholder="Numéro de série  ex. JJQF9D"/>
+        <input class="conn-input" id="cfg-serial" placeholder="Numéro de série  ex. JJQF9D"
+               autocapitalize="characters" autocorrect="off" spellcheck="false"/>
         <input class="conn-input" id="cfg-pass"   placeholder="Mot de passe" type="password"/>
       </div>
       <div class="agree-changed" id="agree-changed">
@@ -418,6 +465,55 @@
     </div>
   </div>
 
+  <!-- ── Bannière « Fermeture forcée » ──
+       Entièrement pilotée par le champ « fclose » de status/full : le firmware est
+       seul propriétaire de l'état, l'app ne fait que l'afficher. Elle réapparaît
+       donc telle quelle après un rechargement de l'app ou une reconnexion. -->
+  <div id="fclose-banner">
+    <!-- Vue 1 : fermeture en cours -->
+    <div id="fclose-progress" style="display:none">
+      <div class="joint-title">⇲ Fermeture forcée en cours</div>
+      <div class="joint-side-badge">Trappe <span id="fclose-side-lbl">—</span></div>
+      <div class="joint-msg">Le poêle referme les trappes l'une après l'autre. N'ouvrez aucune porte tant que ce n'est pas terminé.</div>
+    </div>
+    <!-- Vue 2 : blocage -->
+    <div id="fclose-blocked" style="display:none">
+      <div class="joint-title">⛔ Trappe bloquée</div>
+      <div class="joint-side-badge">Trappe <span id="fclose-blocked-lbl">—</span></div>
+      <div class="joint-msg">Quelque chose empêche la trappe de se fermer — le plus souvent une bûche en travers. Dégagez-la, refermez les portes, puis appuyez sur Réessayer.</div>
+      <div class="joint-btn-row">
+        <button class="btn btn-brown"  onclick="forceCloseRetry()">↻ Réessayer</button>
+        <button class="btn btn-cancel" onclick="forceCloseCancel()">Abandonner</button>
+      </div>
+      <div class="joint-msg" style="margin:10px 0 0">Si le poêle se bloque immédiatement à chaque tentative alors que rien ne gêne, le capteur de blocage est probablement coincé. Vérifiez les deux trappes à l'œil, puis :</div>
+      <button class="btn btn-cancel btn-full" style="margin-top:6px" onclick="forceCloseOverride()">Les trappes sont fermées — débloquer</button>
+    </div>
+    <!-- Vue 3 : fermeture interrompue (redémarrage en plein milieu) -->
+    <div id="fclose-incomplete" style="display:none">
+      <div class="joint-title">⚠️ Trappe probablement ouverte</div>
+      <div class="joint-msg">Une fermeture forcée a été interrompue. Par sécurité, le poêle refuse de charger des bûches tant qu'une fermeture forcée n'a pas abouti.</div>
+      <button class="btn btn-resolve btn-full" onclick="forceClose(true)">⇲ Relancer la fermeture</button>
+      <button class="btn btn-cancel btn-full" style="margin-top:8px" onclick="forceCloseOverride()">Les trappes sont fermées — débloquer</button>
+    </div>
+  </div>
+
+  <!-- ── Bannière « Ajoutez une bûche » — chargement manuel ──
+       Pilotée uniquement par le topic RETENU status/reload_req. Le firmware
+       l'efface lui-même sur défaut, refroidissement, veille et changement de
+       mode, donc l'app n'a aucune règle de priorité à dupliquer ici.
+       Purement informative : pas de bouton de confirmation, c'est la fermeture
+       de la porte principale qui acquitte la demande côté poêle. -->
+  <div id="reload-banner">
+    <div class="reload-title">🪵 Ajoutez une bûche</div>
+    <div class="reload-badges">
+      <span class="reload-badge" id="reload-since">à l'instant</span>
+    </div>
+    <div class="reload-msg">
+      Le poêle attend une bûche : ouvrez la porte du foyer, posez-la, refermez.
+      Le poêle voit la porte se refermer et reprend seul.
+    </div>
+  </div>
+
   <!-- ── Temperature ── -->
   <div class="card-warm">
     <!-- Principale : température ambiante BLE + température souhaitée -->
@@ -433,7 +529,14 @@
           <button class="adj-btn" onclick="adjustRoom(+1)">+</button>
         </div>
         <div class="temp-small-label">Température souhaitée</div>
-        <div class="sched-badge" id="sched-badge">📅 Programmé</div>
+        <!-- Modes en cours, côte à côte : « Programmé » (courbe de température)
+             et « Manuel » (chargement manuel des bûches, status/full feed_manual,
+             via applyFeedMode()). Le second est plein pour rester bien visible :
+             le poêle ne chargera rien tout seul. -->
+        <div class="mode-badges">
+          <div class="sched-badge" id="sched-badge">📅 Programmé</div>
+          <div class="sched-badge feed" id="feed-badge" title="Chargement manuel des bûches">🪵 Manuel</div>
+        </div>
       </div>
     </div>
     <!-- Secondaire : internes du poêle (discrets) -->
@@ -491,21 +594,28 @@
     </div>
     <div class="settings-body" id="options-body">
       <div>
-        <!-- ── Rapport quotidien des bûches ── -->
+        <!-- ── Rapport quotidien des bûches ──
+             Envoyé par le poêle via ntfy. Le réglage vit dans le poêle (NVS) :
+             on l'envoie par cmd/daily_report et on affiche ce qu'il renvoie sur
+             status/daily_report (retenu). Bloc masqué tant que ce topic n'est
+             pas arrivé — un firmware plus ancien ne le publie pas, et
+             l'afficher laisserait croire que le réglage agit. -->
+        <div id="daily-report-block" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <span style="font-size:.85rem;font-weight:600;color:#5a3015">Rapport quotidien des bûches</span>
           <label class="tgl"><input type="checkbox" id="tog-daily-report" onchange="setDailyReportEnabled(this.checked)"><span class="tgl-sl"></span></label>
         </div>
-        <div style="font-size:.78rem;color:#888;margin-bottom:10px">Recevez chaque jour, à l'heure choisie, un récapitulatif des bûches restantes et de la température — envoyé uniquement lorsque le poêle est en marche (automatique).</div>
+        <div style="font-size:.78rem;color:#888;margin-bottom:10px">Recevez chaque jour dans l'application ntfy, à l'heure choisie, le nombre de bûches restantes et le temps de chauffe estimé — envoyé uniquement lorsque le poêle est en marche (automatique), et pas en chargement manuel.</div>
         <div style="display:flex;align-items:center;gap:10px">
           <span style="font-size:.82rem;font-weight:600;color:#5a3015">Heure d'envoi</span>
           <input type="time" id="daily-report-time" value="20:00" onchange="setDailyReportTime(this.value)"
                  style="flex:none;padding:6px 8px;border:1px solid #d8c4b0;border-radius:8px;font-size:.9rem;color:#5a3015;background:#fff">
         </div>
         <div id="daily-report-status" style="font-size:.78rem;color:#8B4513;margin-top:8px;text-align:center;min-height:1.2em"></div>
+        <div class="divider" style="margin:16px 0 12px"></div>
+        </div>
 
         <!-- ── Programmation de température ── -->
-        <div class="divider" style="margin:16px 0 12px"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <span style="font-size:.85rem;font-weight:600;color:#5a3015">Activer la programmation</span>
           <label class="tgl"><input type="checkbox" id="tog-sched-enable" onchange="setSchedEnabled(this.checked)"><span class="tgl-sl"></span></label>
@@ -519,6 +629,19 @@
         <svg id="schedule-svg" width="100%" viewBox="-8 0 340 155" style="display:block;touch-action:none;overflow:visible"></svg>
         <div id="sched-status" style="font-size:.78rem;color:#8B4513;margin-top:8px;text-align:center;min-height:1.2em"></div>
         <button class="btn btn-brown btn-sm btn-full" style="margin-top:8px" onclick="saveSchedule()">Enregistrer et appliquer</button>
+
+        <!-- ── Chargement des bûches ──
+             cmd/feed_mode, à ne pas confondre avec cmd/auto_insert_en (le
+             coupe-circuit de test, non exposé ici) ni avec le mode de
+             ventilation manuel. Le poêle régule exactement pareil : seule
+             change la personne qui met la bûche. -->
+        <div class="divider" style="margin:16px 0 12px"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
+          <span style="font-size:.85rem;font-weight:600;color:#5a3015">Chargement manuel des bûches</span>
+          <label class="tgl"><input type="checkbox" id="feed-mode-toggle" onchange="setFeedMode(this.checked)"><span class="tgl-sl"></span></label>
+        </div>
+        <div style="font-size:.78rem;color:#888">Le poêle régule la température comme d'habitude, mais c'est vous qui rechargez : quand une bûche est nécessaire, il sonne et vous prévient au lieu de la charger lui-même.</div>
+        <div id="feed-mode-note" style="font-size:.78rem;font-weight:600;color:#b9770e;margin-top:6px;min-height:1.1em"></div>
 
         <!-- ── Mode silencieux ── -->
         <div class="divider" style="margin:16px 0 12px"></div>
@@ -678,15 +801,49 @@
 
       <div class="divider"></div>
 
-      <!-- Notifications push -->
+      <!-- Notifications — désormais envoyées par le poêle lui-même via ntfy.
+           L'ancien système de notifications push de l'application (relais +
+           service worker) est désactivé : voir le bloc commenté plus bas dans
+           ce fichier et dans service-worker.js. -->
       <div>
-        <div class="settings-section">Notifications push</div>
+        <div class="settings-section">Notifications</div>
         <div class="gap-col">
-          <div style="font-size:.82rem;opacity:.75;margin-bottom:4px">Recevez une notification même quand l'app est fermée — défaut, cassette vide, cassette basse.</div>
-          <button class="btn btn-brown btn-sm btn-full" id="push-enable-btn" onclick="enablePushNotifications()">🔔 Activer les notifications</button>
-          <button class="btn btn-sm btn-full" id="push-disable-btn" style="display:none;background:#888;color:#fff" onclick="disablePushNotifications()">Désactiver les notifications</button>
-          <button class="btn btn-sm btn-full" id="push-test-btn" style="display:none;background:#5a9e6f;color:#fff" onclick="testPushNotification()">🧪 Envoyer une notification test</button>
+          <div style="font-size:.82rem;opacity:.75">Les alertes sont envoyées directement par le poêle (défaut, cassettes vides, feu éteint, rapport quotidien) via le service gratuit <b>ntfy</b>. Pour les recevoir sur votre téléphone :</div>
+          <div id="ntfy-unavail" class="ntfy-box">En attente du poêle…</div>
+
+          <div id="ntfy-panel-phone" class="ntfy-panel">
+            <div class="ntfy-step"><b>1</b><span>Installez l'application gratuite <b>ntfy</b> :</span></div>
+            <div class="row-btns">
+              <a class="btn btn-tan btn-sm" style="flex:1;text-align:center;text-decoration:none" href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank" rel="noopener">App Store (iPhone)</a>
+              <a class="btn btn-tan btn-sm" style="flex:1;text-align:center;text-decoration:none" href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank" rel="noopener">Google Play (Android)</a>
+            </div>
+            <div class="ntfy-step"><b>2</b><span>Ouvrez ntfy et appuyez sur <b>+</b>. Collez le nom ci-dessous comme sujet, puis appuyez sur <b>S'abonner</b> (ou <b>Subscribe</b>).</span></div>
+            <div class="ntfy-box" id="ntfy-topic-box">—</div>
+            <button class="btn btn-brown btn-sm btn-full" onclick="copyNtfyTopic()">📋 Copier le nom d'abonnement</button>
+            <a class="btn btn-brown btn-sm btn-full" id="ntfy-deeplink" style="display:none;text-align:center;text-decoration:none;box-sizing:border-box" href="#">⚡ Ou s'abonner directement (Android, ntfy installé)</a>
+            <div class="ntfy-step"><b>3</b><span>Autorisez les notifications pour ntfy si le téléphone le demande, puis envoyez une notification test ci-dessous.</span></div>
+            <a class="ntfy-help" href="https://docs.ntfy.sh/subscribe/phone/" target="_blank" rel="noopener">Guide détaillé ntfy (en anglais) ↗</a>
+          </div>
+
+
+          <button class="btn btn-sm btn-full" id="push-test-btn" style="background:#5a9e6f;color:#fff" onclick="testPushNotification()">🧪 Envoyer une notification test</button>
           <div id="push-notif-status" style="font-size:.8rem;margin-top:2px;opacity:.7;text-align:center"></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Thermomètre de la pièce : capteur Xiaomi d'origine (firmware stock),
+           déchiffré par le poêle avec sa clé de liaison. Envoyé NON retenu sur
+           cmd/room_sensor_cfg — la clé ne doit pas rester sur le broker ; le
+           poêle l'enregistre en NVS et renvoie l'adresse MAC dans status/full
+           (room_sensor_mac), jamais la clé. -->
+      <div>
+        <div class="settings-section">Thermomètre de la pièce (Bluetooth)</div>
+        <div class="gap-col">
+          <input type="text" id="room-sensor-cfg" class="conn-input" autocomplete="off" spellcheck="false" placeholder="MAC + clé, ex. A4:C1:38:B7:C0:40 af3dbf6ccf5cdf967a415b5b986ca8ee" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:.78rem"/>
+          <button class="btn btn-brown btn-sm btn-full" onclick="saveRoomSensorConfig()">Connecter le thermomètre</button>
+          <div style="font-size:.78rem;color:#8B4513;text-align:center">Thermomètre actuel : <span id="room-sensor-mac-val">—</span></div>
         </div>
       </div>
 
@@ -720,46 +877,57 @@
       <div>
         <div class="settings-section">Compte</div>
         <div class="gap-col">
-          <input class="conn-input" id="pw-current" placeholder="Mot de passe actuel" type="password"/>
-          <input class="conn-input" id="pw-new"     placeholder="Nouveau mot de passe" type="password"/>
-          <input class="conn-input" id="pw-confirm" placeholder="Confirmer le nouveau mot de passe" type="password"/>
-          <button class="btn btn-brown btn-sm btn-full" id="pw-change-btn" onclick="changePassword()">Changer le mot de passe</button>
-          <div id="pw-change-status" style="font-size:.8rem;margin-top:2px;opacity:.7;text-align:center"></div>
+          <details class="set-fold">
+            <summary>Changer le mot de passe</summary>
+            <div class="set-fold-body gap-col">
+              <input class="conn-input" id="pw-current" placeholder="Mot de passe actuel" type="password"/>
+              <input class="conn-input" id="pw-new"     placeholder="Nouveau mot de passe" type="password"/>
+              <input class="conn-input" id="pw-confirm" placeholder="Confirmer le nouveau mot de passe" type="password"/>
+              <button class="btn btn-brown btn-sm btn-full" id="pw-change-btn" onclick="changePassword()">Changer le mot de passe</button>
+              <div id="pw-change-status" style="font-size:.8rem;margin-top:2px;opacity:.7;text-align:center"></div>
+            </div>
+          </details>
+          <button class="btn btn-gray btn-full" onclick="disconnect()">Déconnecter</button>
         </div>
       </div>
 
       <div class="divider"></div>
 
-      <!-- Redémarrage ESP -->
+      <!-- Aide : bouton de maintenance -->
       <div>
-        <button class="btn btn-red btn-full" onclick="resetESP()">↺ Redémarrer l'ESP32</button>
-        <p style="font-size:.72rem;color:#aaa;margin-top:8px;text-align:center">Attention : cela va redémarrer le contrôleur</p>
+        <div class="settings-section">Aide</div>
+        <details class="set-fold">
+          <summary>Bouton de maintenance du poêle</summary>
+          <div class="set-fold-body">
+            <div style="font-size:.78rem;color:#888;margin-bottom:10px">Le bouton situé sur le poêle. Son action dépend de la durée d'appui et de l'état du poêle.</div>
+            <div class="mbtn-tbl">
+              <div class="mbtn-hd fault">Poêle en défaut</div>
+              <div class="mbtn-row"><b>Appui bref</b><span>Ouvre la porte du côté en défaut pendant 10 s, pour dégager la bûche coincée. Répétable : 2 bips courts = porte libérée, un bip long = refusé (moteur encore en mouvement, réessayez dans un instant).</span></div>
+              <div class="mbtn-row"><b>Appui 3 s</b><span>Valide le défaut : la trappe se referme et les ventilateurs repartent. À faire porte de chargement refermée, après avoir ouvert la porte au moins une fois et attendu les 10 s.</span></div>
+              <div class="mbtn-row"><b>Appui 30 s</b><span>Redémarre le poêle. Tous les réglages sont conservés.</span></div>
+              <div class="mbtn-hd ok">Poêle hors défaut</div>
+              <div class="mbtn-row"><b>Appui bref</b><span>Aucun effet — sauf juste après une récupération de compte lancée depuis le portail Wi-Fi (voir ci-dessous).</span></div>
+              <div class="mbtn-row"><b>Appui 3 s</b><span>Lance le refroidissement — ou l'annule s'il est déjà en cours.</span></div>
+              <div class="mbtn-row"><b>Appui 10 s</b><span>Redémarre le poêle. Tous les réglages sont conservés.</span></div>
+              <div class="mbtn-row"><b>Appui 20 s</b><span>Réinitialisation d'usine : efface les réglages, la programmation et le Wi-Fi, puis redémarre sur le point d'accès de configuration.</span></div>
+            </div>
+            <div class="mbtn-note">Un bip retentit à chaque palier atteint (1 bip au 1<sup>er</sup>, 2 au 2<sup>e</sup>, 3 au 3<sup>e</sup>) : relâchez au bon nombre de bips. Un bip long signifie que l'action a été refusée. Les paliers sont figés au début de l'appui : si le poêle est en défaut quand vous appuyez, ce sont les durées « en défaut » qui s'appliquent jusqu'au relâchement. En défaut, la réinitialisation d'usine est volontairement inaccessible : effacer le Wi-Fi rendrait le poêle injoignable au pire moment.<br><br><b>Récupération de compte</b> (mot de passe de l'application oublié) : connectez-vous au point d'accès « WoodMood-Setup », utilisez la carte de récupération, puis confirmez par un appui bref sur le bouton dans les 2 minutes. Le poêle réinitialise alors le mot de passe et redémarre.</div>
+          </div>
+        </details>
       </div>
 
       <div class="divider"></div>
 
-      <!-- Bouton de maintenance (aide) -->
+      <!-- Zone avancée : actions rares, en dernier -->
       <div>
-        <div class="settings-section">Bouton de maintenance</div>
-        <div style="font-size:.78rem;color:#888;margin-bottom:10px">Le bouton situé sur le poêle. Son action dépend de la durée d'appui et de l'état du poêle.</div>
-        <div class="mbtn-tbl">
-          <div class="mbtn-hd fault">Poêle en défaut</div>
-          <div class="mbtn-row"><b>Appui bref</b><span>Ouvre la porte du côté en défaut pendant 10 s, pour dégager la bûche coincée. Répétable : 2 bips courts = porte libérée, un bip long = refusé (moteur encore en mouvement, réessayez dans un instant).</span></div>
-          <div class="mbtn-row"><b>Appui 3 s</b><span>Valide le défaut : la trappe se referme et les ventilateurs repartent. À faire porte de chargement refermée, après avoir ouvert la porte au moins une fois et attendu les 10 s.</span></div>
-          <div class="mbtn-row"><b>Appui 30 s</b><span>Redémarre le poêle. Tous les réglages sont conservés.</span></div>
-          <div class="mbtn-hd ok">Poêle hors défaut</div>
-          <div class="mbtn-row"><b>Appui bref</b><span>Aucun effet — sauf juste après une récupération de compte lancée depuis le portail Wi-Fi (voir ci-dessous).</span></div>
-          <div class="mbtn-row"><b>Appui 3 s</b><span>Lance le refroidissement — ou l'annule s'il est déjà en cours.</span></div>
-          <div class="mbtn-row"><b>Appui 10 s</b><span>Redémarre le poêle. Tous les réglages sont conservés.</span></div>
-          <div class="mbtn-row"><b>Appui 20 s</b><span>Réinitialisation d'usine : efface les réglages, la programmation et le Wi-Fi, puis redémarre sur le point d'accès de configuration.</span></div>
+        <div class="settings-section danger">Zone avancée</div>
+        <div class="danger-zone">
+          <button class="btn btn-outline-red btn-full" id="fclose-btn" onclick="forceClose()">⇲ Fermeture forcée des trappes</button>
+          <p class="dz-note">Si une trappe est restée ouverte après un redémarrage. Portes fermées ; environ 40 s ; le poêle s'arrête s'il rencontre un obstacle.</p>
+          <button class="btn btn-outline-red btn-full" onclick="resetESP()">↺ Redémarrer le poêle</button>
+          <p class="dz-note">Tous les réglages sont conservés.</p>
         </div>
-        <div class="mbtn-note">Un bip retentit à chaque palier atteint (1 bip au 1<sup>er</sup>, 2 au 2<sup>e</sup>, 3 au 3<sup>e</sup>) : relâchez au bon nombre de bips. Un bip long signifie que l'action a été refusée. Les paliers sont figés au début de l'appui : si le poêle est en défaut quand vous appuyez, ce sont les durées « en défaut » qui s'appliquent jusqu'au relâchement. En défaut, la réinitialisation d'usine est volontairement inaccessible : effacer le Wi-Fi rendrait le poêle injoignable au pire moment.<br><br><b>Récupération de compte</b> (mot de passe de l'application oublié) : connectez-vous au point d'accès « WoodMood-Setup », utilisez la carte de récupération, puis confirmez par un appui bref sur le bouton dans les 2 minutes. Le poêle réinitialise alors le mot de passe et redémarre.</div>
       </div>
-
-      <div class="divider"></div>
-
-      <!-- Déconnexion -->
-      <button class="btn btn-gray btn-full" onclick="disconnect()">Déconnecter</button>
 
     </div>
   </div>
@@ -835,14 +1003,20 @@ const SWAP_SIDES = false;   // true = inverser gauche/droite par rapport au firm
 // ============================================================
 // STATE
 // ============================================================
-const LS          = 'woodmood_cfg';
-const LS_ALERTS   = 'woodmood_alerts';
-const LS_HOUSE    = 'woodmood_house';
-const LS_SCHED    = 'woodmood_schedule';        // ancien format (tableau plat) — lu pour migration
-const LS_SCHED_V2 = 'woodmood_schedule_v2';     // {week:[12], weekend:[12]}
-const LS_SCHED_EN = 'woodmood_sched_enabled';
-const LS_PUSH     = 'woodmood_push_enabled';
-const LS_DAILY    = 'woodmood_daily_report';    // {enabled, time:'HH:MM', lastSent:'YYYY-MM-DD'}
+// Suffixe des clés de stockage local : VIDE en production, « _demo » dans le
+// dépôt French-app-Demo (la démo et la copie Pages de cette app partagent
+// l'origine henri-dlgx.github.io, donc le même localStorage). Ne jamais le
+// changer ici : les clients perdraient numéro de série, mot de passe,
+// programmation et acceptation des CGU.
+const LS_NS       = '';
+const LS          = 'woodmood_cfg'            + LS_NS;
+const LS_ALERTS   = 'woodmood_alerts'         + LS_NS;
+const LS_HOUSE    = 'woodmood_house'          + LS_NS;
+const LS_SCHED    = 'woodmood_schedule'       + LS_NS;   // ancien format (tableau plat) — lu pour migration
+const LS_SCHED_V2 = 'woodmood_schedule_v2'    + LS_NS;   // {week:[12], weekend:[12]}
+const LS_SCHED_EN = 'woodmood_sched_enabled'  + LS_NS;
+const LS_PUSH     = 'woodmood_push_enabled'   + LS_NS;
+const LS_ROOM     = 'woodmood_room_temp'      + LS_NS;
 
 // Broker is the same for every device — only the serial + password differ per user.
 // Login is per-serial: username is always "<serial>-app", locked by EMQX ACL
@@ -863,7 +1037,7 @@ const RELAY_HEADERS = {
 // conditions peuvent donc être réécrites, ou déplacées ailleurs, sans jamais
 // republier l'application. AGREEMENT_URL n'est qu'un filet de sécurité si
 // version.json est illisible ou ne porte pas de champ `url`.
-const LS_AGREE          = 'woodmood_agreement';   // {version, url, acceptedAt}
+const LS_AGREE          = 'woodmood_agreement' + LS_NS;   // {version, url, acceptedAt}
 const AGREEMENT_META    = 'https://henri-dlgx.github.io/woodmood-legal/version.json';
 const AGREEMENT_URL     = 'https://henri-dlgx.github.io/woodmood-legal/conditions.html';
 const AGREEMENT_TIMEOUT = 4000;   // ms — au-delà, on considère le fichier injoignable
@@ -879,6 +1053,26 @@ let agreeOpened      = false;             // conditions ouvertes pendant cette s
 // obliger à retaper un mot de passe qui fonctionnait déjà. Voir renderConnCard().
 let credsLocked      = false;
 let credsUnlocked    = false;            // l'utilisateur a demandé à les modifier
+// ── Chargement manuel (FEED_MANUAL côté firmware) ───────────────────────────
+// feedManual      : le poêle demande les bûches au lieu de les charger.
+// reloadPending   : une bûche est demandée MAINTENANT (topic status/reload_req).
+// reloadRaisedMs  : instant local du lever de la demande, reconstitué à partir
+//                   du champ since_sec. Indispensable : le firmware ne publie
+//                   reload_req que sur changement, donc since_sec est figé à la
+//                   réception et c'est l'app qui doit faire avancer l'horloge.
+// stoveSeenMs     : dernière preuve de vie du poêle (status/full arrive à 1 Hz).
+//                   reload_req est RETENU : sans ce garde-fou, se connecter à un
+//                   poêle éteint rejouerait une demande vieille de plusieurs
+//                   jours et l'app réclamerait une bûche pour un foyer froid.
+let feedManual       = false;
+let reloadPending    = false;
+let reloadPromptNum  = 0;
+let reloadRaisedMs   = 0;
+let reloadTicker     = null;
+let stoveSeenMs      = 0;
+let doorMainOpen     = false;  // status/full door_main — l'actionneur de trappe est verrouillé porte ouverte
+let doorLoadOpen     = false;  // status/full door_load
+let fcloseState      = 0;      // status/full fclose — voir applyForceClose()
 let client           = null;
 let prefix           = '';
 let roomTemp         = 18;   // T1 par défaut (= consigne 275 °C côté poêle)
@@ -913,10 +1107,9 @@ const _pushThrottle  = {};
 let pwChangeNewValue = null;
 let pwChangeTimeout  = null;
 
-// Rapport quotidien des bûches — notification locale envoyée une fois par jour
-// à l'heure choisie, tant que l'app tourne et que le poêle est en marche.
-let dailyReport      = { enabled: false, time: '20:00', lastSent: '' };
-let dailyReportTimer = null;
+// Rapport quotidien des bûches — envoyé par le poêle (ntfy). Copie locale de ce
+// que le poêle a renvoyé sur status/daily_report.
+let dailyReport      = { enabled: true, time: '20:00' };
 
 // Suivi d'état dérivé
 let stoveTemp          = null;   // dernière température du poêle (°C) via MQTT
@@ -974,11 +1167,14 @@ function ignoreEcho(f, incoming) {
 window.addEventListener('load', () => {
   loadSettings();
   initSchedule();
-  initDailyReport();
+  renderNtfy();
   // Restaure la dernière température souhaitée depuis localStorage
-  const savedRoom = parseInt(localStorage.getItem('woodmood_room_temp'));
+  const savedRoom = parseInt(localStorage.getItem(LS_ROOM));
   if (savedRoom >= 18 && savedRoom <= 23) roomTemp = savedRoom;
   if (cfg.pass && cfg.serial) {
+    // Rattrape aussi un numéro de série enregistré en minuscules par une
+    // version précédente : fillForm() le réaffiche corrigé.
+    cfg.serial = normalizeSerial(cfg.serial);
     cfg.user = cfg.serial + '-app';
     fillForm();
     // Conditions d'utilisation : on se connecte immédiatement sur la version
@@ -1148,12 +1344,31 @@ function refreshAgreementUi() {
 // ============================================================
 // CONNECTION
 // ============================================================
+// Le numéro de série est recopié à la main depuis la carte livrée avec le poêle.
+// Côté EMQX, le nom d'utilisateur ET le filtre de topic sont sensibles à la
+// casse : « afnmu3 » donne l'utilisateur « afnmu3-app » et le préfixe
+// « WoodMoodafnmu3 », que le courtier refuse — sans aucun message disant
+// pourquoi. L'utilisateur voit seulement « hors ligne » et conclut que son mot
+// de passe est faux ou que le poêle est en panne.
+//
+// Ce n'est pas un cas d'école : les claviers iOS et Android mettent par défaut
+// une majuscule à la PREMIÈRE lettre seulement, donc taper la carte donne
+// naturellement « Afnmu3 ». On enlève aussi les espaces (un numéro de série
+// n'en contient jamais), mais rien d'autre : une saisie réellement fausse doit
+// continuer à échouer visiblement plutôt que d'être « corrigée » en silence.
+//
+// Sans risque pour les connexions existantes : tous les numéros de série émis
+// sont alphanumériques majuscules.
+function normalizeSerial(raw) {
+  return String(raw || '').replace(/\s+/g, '').toUpperCase();
+}
+
 function saveAndConnect() {
   cfg.broker = MQTT_BROKER;
   cfg.port   = MQTT_PORT;
   // Champs masqués = on garde les identifiants enregistrés tels quels.
   if (!credsLocked) {
-    cfg.serial = document.getElementById('cfg-serial').value.trim();
+    cfg.serial = normalizeSerial(document.getElementById('cfg-serial').value);
     cfg.pass   = document.getElementById('cfg-pass').value.trim();
   }
   cfg.user   = cfg.serial + '-app';
@@ -1347,14 +1562,23 @@ function onMessage(topic, payloadBuf) {
     bleRoomTemp   = bleRoomTempOk ? val : null;
     updateBleRoomTemp(); return;
   }
+  if (sub === 'status/ntfy_link') { setNtfyLink(payload); return; }
+  if (sub === 'status/daily_report') { applyDailyReport(payload); return; }
+  // Demande de rechargement (chargement manuel) — topic RETENU, publié par le
+  // firmware uniquement sur changement d'état ou de numéro de rappel.
+  if (sub === 'status/reload_req') { applyReloadReq(payload); return; }
   if (sub === 'status/log_level_l') {
     if (ignoreEcho('log_l', parseInt(payload) || 0)) return;
     const prevL = logL;
     logL = parseInt(payload) || 0;
     renderBars('left', logL);
     document.getElementById('count-left').textContent = logL + ' bûches';
-    if (logL === 1 && prevL !== 1) triggerPush('low-L', '🪵 WoodMood — Cassette gauche basse', 'Il reste seulement 1 bûche à gauche');
-    checkBothMagazinesEmpty();
+    // Notifications désactivées — tout passe par ntfy (poêle). L'alerte
+    // « cassette gauche basse » est supprimée volontairement : un côté qui se
+    // vide en cours de flambée est normal et déclenchait une alerte quasi
+    // permanente. Seul « plus aucune bûche des deux côtés » alerte encore.
+    // if (logL === 1 && prevL !== 1) triggerPush('low-L', '🪵 WoodMood — Cassette gauche basse', 'Il reste seulement 1 bûche à gauche');
+    // checkBothMagazinesEmpty();
     calcBurnTime(); return;
   }
   if (sub === 'status/log_level_r') {
@@ -1363,8 +1587,9 @@ function onMessage(topic, payloadBuf) {
     logR = parseInt(payload) || 0;
     renderBars('right', logR);
     document.getElementById('count-right').textContent = logR + ' bûches';
-    if (logR === 1 && prevR !== 1) triggerPush('low-R', '🪵 WoodMood — Cassette droite basse', 'Il reste seulement 1 bûche à droite');
-    checkBothMagazinesEmpty();
+    // Idem côté droit — voir le commentaire ci-dessus.
+    // if (logR === 1 && prevR !== 1) triggerPush('low-R', '🪵 WoodMood — Cassette droite basse', 'Il reste seulement 1 bûche à droite');
+    // checkBothMagazinesEmpty();
     calcBurnTime(); return;
   }
   if (sub === 'status/system_state') {
@@ -1406,6 +1631,14 @@ function applyFull(d) {
     bleRoomTemp   = bleRoomTempOk ? val : null;
     updateBleRoomTemp();
   }
+  if (d.room_sensor_mac !== undefined) applyRoomSensorMac(d.room_sensor_mac);
+  // État des portes : le firmware les publie depuis toujours, mais l'app les
+  // ignorait. La fermeture forcée en a besoin — l'actionneur de trappe est coupé
+  // par les contacts de porte, donc lancer une fermeture porte ouverte ne
+  // déplacerait rien tout en faisant croire au firmware que c'est fermé.
+  if (d.door_main !== undefined) doorMainOpen = !!d.door_main;
+  if (d.door_load !== undefined) doorLoadOpen = !!d.door_load;
+  if (d.fclose    !== undefined) applyForceClose(parseInt(d.fclose) || 0);
   if (d.log_l !== undefined && !ignoreEcho('log_l', parseInt(d.log_l) || 0)) {
     logL = parseInt(d.log_l) || 0;
     renderBars('left', logL);
@@ -1423,7 +1656,7 @@ function applyFull(d) {
     if (r >= 18 && r <= 23 && r !== roomTemp) {
       roomTemp = r;
       document.getElementById('room-val').textContent = tempToLabel(roomTemp);
-      localStorage.setItem('woodmood_room_temp', roomTemp);
+      localStorage.setItem(LS_ROOM, roomTemp);
     }
   }
   // Le poêle dit AUSSI d'où vient le niveau affiché : "sched" (la courbe le
@@ -1436,6 +1669,12 @@ function applyFull(d) {
     const rv = document.getElementById('room-val');
     if (rv) rv.classList.toggle('sched-driven',
                                 d.room_src === 'sched' && !isLocked('room_temp'));
+  }
+  // Preuve de vie : status/full arrive à 1 Hz tant que le poêle est en ligne.
+  // Sert à ne pas afficher une demande de bûche retenue par un poêle éteint.
+  stoveSeenMs = Date.now();
+  if (d.feed_manual !== undefined && !isLocked('feed_mode')) {
+    applyFeedMode(!!d.feed_manual);
   }
   if (d.system_active !== undefined) sysActive = !!d.system_active;
   if (d.fault !== undefined) setFault(d.fault, d.fault_side, d.fault_ready);
@@ -1634,7 +1873,10 @@ function setFault(active, side, ready) {
   if (faultActive) {
     banner.classList.add('show');
     if (!wasActive) {
-      triggerPush('fault', '⚠️ WoodMood — Défaut détecté', lastFaultMsg || 'Le poêle nécessite votre attention');
+      // Notification désactivée — le poêle envoie lui-même l'alerte de défaut
+      // par ntfy, avec un texte en clair (« Bûche bloquée côté … »). La
+      // bannière rouge dans l'app, elle, reste bien active juste au-dessus.
+      // triggerPush('fault', '⚠️ WoodMood — Défaut détecté', lastFaultMsg || 'Le poêle nécessite votre attention');
       // Nouvelle panne — réinitialiser à la phase 1
       clearFaultCountdown();
       faultReady = false;
@@ -1764,6 +2006,99 @@ function setFaultMsg(msg) {
 }
 
 // ============================================================
+// CHARGEMENT MANUEL DES BÛCHES  (FEED_MANUAL / ReloadPrompt côté firmware)
+// ============================================================
+// Trois concepts « manuels » coexistent dans le firmware et ne doivent pas être
+// confondus ici :
+//   • mode de ventilation manuel  → les vitesses de ventilateur à la main
+//   • cmd/auto_insert_en          → coupe-circuit d'insertion de test (non exposé)
+//   • cmd/feed_mode (ce bloc)     → QUI met la bûche : la machine ou l'utilisateur
+// Dans ce mode la régulation, la courbe de ventilation et l'échéancier
+// d'insertion tournent exactement comme en automatique. Seul l'instant où une
+// bûche est due change de conséquence : rien ne bouge, le poêle sonne et
+// demande. C'est ReloadPrompt qui porte cette demande, côté firmware.
+
+// Au-delà, un status/full à 1 Hz est considéré perdu et le poêle hors ligne.
+const STOVE_STALE_MS      = 15000;
+
+function setFeedMode(on) {
+  // Verrou optimiste : cmd/feed_mode n'est PAS retenu (le firmware garde le
+  // mode en NVS et le réémet dans status/full), donc l'écho met un cycle à
+  // revenir et la bascule retomberait visuellement sans ce verrou.
+  lockField('feed_mode');
+  applyFeedMode(on);
+  publish('cmd/feed_mode', on ? 'manual' : 'auto');
+  showToast(on ? 'Chargement manuel — le poêle vous demandera les bûches'
+               : 'Chargement automatique rétabli');
+}
+
+function applyFeedMode(on) {
+  feedManual = !!on;
+  const tog = document.getElementById('feed-mode-toggle');
+  if (tog) tog.checked = feedManual;
+  const badge = document.getElementById('feed-badge');
+  if (badge) badge.classList.toggle('active', feedManual);
+  const note = document.getElementById('feed-mode-note');
+  if (note) note.textContent = feedManual
+    ? 'Le poêle sonnera et vous préviendra quand une bûche sera nécessaire.'
+    : '';
+  // Quitter le mode annule toute demande en cours : le firmware efface la
+  // demande sur changement de mode, mais il ne republiera reload_req qu'au
+  // prochain cycle et la bannière resterait affichée dans l'intervalle.
+  if (!feedManual && reloadPending) clearReloadPrompt();
+  updateDailyReportStatus();   // le poêle n'envoie pas le rapport en manuel
+}
+
+function applyReloadReq(payload) {
+  let d;
+  try { d = JSON.parse(payload); } catch (e) { return; }
+  if (!d || typeof d !== 'object') return;
+
+  const pending = !!d.pending;
+  if (!pending) { clearReloadPrompt(); return; }
+
+  reloadPending   = true;
+  reloadPromptNum = parseInt(d.n) || 1;
+  // since_sec est daté de la PUBLICATION, pas de la réception. Sur un message
+  // retenu reçu à la connexion, l'écart peut valoir des heures — on reconstitue
+  // donc l'instant du lever et on laisse le minuteur local avancer seul.
+  const sinceSec  = Math.max(0, parseInt(d.since_sec) || 0);
+  reloadRaisedMs  = Date.now() - sinceSec * 1000;
+
+  renderReloadPrompt();
+  if (!reloadTicker) reloadTicker = setInterval(renderReloadPrompt, 1000);
+}
+
+function clearReloadPrompt() {
+  reloadPending   = false;
+  reloadPromptNum = 0;
+  reloadRaisedMs  = 0;
+  if (reloadTicker) { clearInterval(reloadTicker); reloadTicker = null; }
+  const b = document.getElementById('reload-banner');
+  if (b) b.classList.remove('show');
+}
+
+function renderReloadPrompt() {
+  const banner = document.getElementById('reload-banner');
+  if (!banner) return;
+
+  // status/reload_req est retenu : le courtier le rejoue à chaque connexion,
+  // même si le poêle est débranché depuis. Sans ce test, ouvrir l'app sur un
+  // poêle éteint réclamerait une bûche pour un foyer froid depuis longtemps.
+  const stoveLive = stoveSeenMs > 0 && (Date.now() - stoveSeenMs) < STOVE_STALE_MS;
+  if (!reloadPending || !stoveLive) { banner.classList.remove('show'); return; }
+  banner.classList.add('show');
+
+  const elapsedMin = Math.floor((Date.now() - reloadRaisedMs) / 60000);
+  const since = document.getElementById('reload-since');
+  if (since) {
+    since.textContent = elapsedMin < 1 ? "demandé à l'instant"
+                      : elapsedMin === 1 ? 'demandé il y a 1 minute'
+                      : 'demandé il y a ' + elapsedMin + ' minutes';
+  }
+}
+
+// ============================================================
 // BARRES DE CASSETTES
 // ============================================================
 function renderBars(side, count) {
@@ -1793,7 +2128,7 @@ function adjustRoom(delta) {
   // Le niveau redevient « à moi » tout de suite ; si la programmation est
   // active le poêle en fera un réglage temporaire jusqu'au prochain créneau.
   document.getElementById('room-val').classList.remove('sched-driven');
-  localStorage.setItem('woodmood_room_temp', roomTemp);
+  localStorage.setItem(LS_ROOM, roomTemp);
   lockField('room_temp', roomTemp); // garde l'affichage jusqu'à confirmation du firmware
   publish('cmd/room_temp', roomTemp);
 }
@@ -1904,9 +2239,9 @@ function setSilenceMode(on) {
 // REDÉMARRAGE ESP
 // ============================================================
 function resetESP() {
-  if (!confirm('Redémarrer le contrôleur ESP32 ?')) return;
+  if (!confirm('Redémarrer le poêle ? Tous les réglages sont conservés.')) return;
   publish('cmd/reset', '1');
-  showToast('Redémarrage ESP32…');
+  showToast('Redémarrage du poêle…');
 }
 
 // ============================================================
@@ -2229,6 +2564,110 @@ function closeJointBanner() {
 }
 
 // ============================================================
+// FERMETURE FORCÉE DES TRAPPES  (dépannage)
+// ============================================================
+// Referme les deux trappes, gauche puis droite. Sert au cas que rien d'autre ne
+// couvre : le poêle a redémarré avec une trappe ouverte. Le firmware surveille le
+// bouton de blocage pendant toute la course et s'arrête sur obstacle.
+//
+// L'app ne garde aucun état : tout vient du champ « fclose » de status/full, donc
+// un rechargement de page ou une reconnexion retrouve l'écran exact.
+const FCLOSE_IDLE = 0, FCLOSE_LEFT = 1, FCLOSE_RIGHT = 2,
+      FCLOSE_BLOCKED_L = 3, FCLOSE_BLOCKED_R = 4, FCLOSE_INCOMPLETE = 5;
+
+function forceClose(fromBanner = false) {
+  // Garde-fous en « échec fermé », comme changerJoint() : on préfère refuser à
+  // tort que lancer un actionneur alors que le poêle n'est pas en état.
+  if (!(stoveSeenMs > 0 && (Date.now() - stoveSeenMs) < STOVE_STALE_MS)) {
+    alert('Le poêle ne répond pas pour le moment. Attendez d\'être connecté avant de lancer une fermeture forcée.');
+    return;
+  }
+  if (systemState === 'fault') {
+    alert('Le poêle est en défaut. Utilisez « Valider le défaut » : cette procédure referme déjà la trappe et remet les ventilateurs en route.');
+    return;
+  }
+  if (jointServiceActive) {
+    alert('Un changement de joint est en cours. Terminez-le d\'abord.');
+    return;
+  }
+  if (doorMainOpen || doorLoadOpen) {
+    alert('Une porte est ouverte. La trappe est verrouillée tant qu\'une porte est ouverte : refermez tout, puis réessayez.');
+    return;
+  }
+  if (!fromBanner && !confirm(
+        'Fermeture forcée des trappes\n\n'
+      + 'Le poêle va refermer la trappe gauche, puis la droite — environ 40 secondes en tout. '
+      + 'Restez à l\'écart et n\'ouvrez aucune porte pendant l\'opération.\n\n'
+      + 'À n\'utiliser qu\'en dépannage, si une trappe est restée ouverte.\n\nContinuer ?')) {
+    return;
+  }
+  publish('cmd/force_close', '1');
+  showToast('Fermeture forcée lancée…');
+}
+
+function forceCloseRetry() {
+  if (doorMainOpen || doorLoadOpen) {
+    alert('Refermez toutes les portes avant de réessayer : la trappe ne peut pas bouger porte ouverte.');
+    return;
+  }
+  publish('cmd/force_close', 'retry');
+  showToast('Nouvelle tentative…');
+}
+
+// Dernier recours : le poêle ne mesure pas la fermeture des trappes (il n'y a pas
+// de capteur de position), il ne fait que retenir qu'une fermeture n'a pas abouti.
+// Si le capteur de blocage est coincé, aucune fermeture ne peut aboutir et le poêle
+// refuserait de se recharger indéfiniment. Ce bouton lève le verrou sur la parole
+// de l'utilisateur — il ne déplace rien.
+function forceCloseOverride() {
+  if (!confirm(
+        'Débloquer le chargement ?\n\n'
+      + 'Vérifiez D\'ABORD, à l\'œil, que les deux trappes sont bien fermées.\n\n'
+      + 'Le poêle ne peut pas le vérifier lui-même : il vous croira sur parole et '
+      + 'recommencera à charger des bûches. Si une trappe est en réalité ouverte, '
+      + 'une bûche tombera dans un foyer ouvert.\n\nConfirmer ?')) return;
+  publish('cmd/force_close', 'override');
+  showToast('Verrou levé — chargement réactivé');
+}
+
+function forceCloseCancel() {
+  if (!confirm('Abandonner la fermeture ?\n\nLa trappe restera considérée comme ouverte et le poêle refusera de charger des bûches tant qu\'une fermeture forcée n\'aura pas abouti.')) return;
+  publish('cmd/force_close', '0');
+  showToast('Fermeture abandonnée');
+}
+
+// Reflet pur de l'état firmware — aucune décision prise ici.
+function applyForceClose(code) {
+  if (code === fcloseState) return;   // évite de repeindre à chaque seconde
+  const wasRunning = (fcloseState !== FCLOSE_IDLE);
+  fcloseState = code;
+
+  const banner   = document.getElementById('fclose-banner');
+  const progress = document.getElementById('fclose-progress');
+  const blocked  = document.getElementById('fclose-blocked');
+  const incompl  = document.getElementById('fclose-incomplete');
+  const btn      = document.getElementById('fclose-btn');
+  const show = (el, on) => { el.style.display = on ? '' : 'none'; };
+
+  const running     = (code === FCLOSE_LEFT || code === FCLOSE_RIGHT);
+  const isBlocked   = (code === FCLOSE_BLOCKED_L || code === FCLOSE_BLOCKED_R);
+  const isIncomplete= (code === FCLOSE_INCOMPLETE);
+
+  show(progress, running);
+  show(blocked,  isBlocked);
+  show(incompl,  isIncomplete);
+  banner.classList.toggle('show', running || isBlocked || isIncomplete);
+  if (btn) btn.disabled = (running || isBlocked);
+
+  // mapSide() parce que l'app peut inverser gauche/droite par rapport au firmware.
+  const sideTxt = (isRight) => (mapSide(isRight ? 'r' : 'l') === 'r') ? 'droite' : 'gauche';
+  if (running)   document.getElementById('fclose-side-lbl').textContent    = sideTxt(code === FCLOSE_RIGHT);
+  if (isBlocked) document.getElementById('fclose-blocked-lbl').textContent = sideTxt(code === FCLOSE_BLOCKED_R);
+
+  if (code === FCLOSE_IDLE && wasRunning) showToast('Trappes refermées');
+}
+
+// ============================================================
 // PARAMÈTRES — MAISON
 // ============================================================
 function setInsulation(val, save = true) {
@@ -2253,6 +2692,29 @@ function saveHouseParams() {
     insulation
   }));
   alert('Paramètres de la maison enregistrés.');
+}
+
+// ============================================================
+// PARAMÈTRES — THERMOMÈTRE DE LA PIÈCE (BLUETOOTH)
+// ============================================================
+function saveRoomSensorConfig() {
+  const input = document.getElementById('room-sensor-cfg');
+  // Le firmware attend exactement 12 hex (MAC) + 32 hex (clé) ; toute
+  // ponctuation (deux-points, tirets, espaces) est ignorée.
+  const hex = (input.value || '').replace(/[^0-9a-fA-F]/g, '');
+  if (hex.length !== 44) {
+    showToast('Format invalide — MAC (12) + clé (32) = 44 caractères hexadécimaux, reçu ' + hex.length);
+    return;
+  }
+  if (!client || !client.connected) { alert('Non connecté au poêle'); return; }
+  publish('cmd/room_sensor_cfg', hex);   // non retenu — la clé ne doit pas rester sur le broker
+  input.value = '';
+  showToast('Thermomètre envoyé — en attente de confirmation du poêle…');
+}
+
+function applyRoomSensorMac(mac) {
+  const el = document.getElementById('room-sensor-mac-val');
+  if (el) el.textContent = mac ? mac : 'aucun configuré';
 }
 
 // ============================================================
@@ -2317,9 +2779,6 @@ function toggleOptions() {
   document.getElementById('options-arrow').classList.toggle('open', optionsOpen);
   if (optionsOpen) {
     document.getElementById('tog-sched-enable').checked = schedEnabled;
-    document.getElementById('tog-daily-report').checked  = dailyReport.enabled;
-    document.getElementById('daily-report-time').value   = dailyReport.time;
-    updateDailyReportStatus();
     schedEditMode = isWeekendDay() ? 'weekend' : 'week';   // ouvrir sur la courbe du jour
     updateSchedTabs();
     renderScheduleSVG();
@@ -2595,8 +3054,20 @@ function saveSchedule() {
 }
 
 // ============================================================
-// NOTIFICATIONS PUSH
+// NOTIFICATIONS  — DÉSACTIVÉES (juil. 2026)
 // ============================================================
+// Toutes les alertes viennent maintenant du poêle lui-même, par ntfy
+// (NtfyNotification.cpp dans le firmware). Deux raisons d'avoir tout coupé
+// ici plutôt que de garder les deux canaux :
+//   • triggerPush() n'était PAS une vraie notification push — c'était un
+//     `new Notification()` local, qui n'existe que tant que l'onglet tourne.
+//     Le canal ntfy, lui, marche application fermée et téléphone verrouillé.
+//   • garder les deux produisait des doublons (l'un local, l'autre poussé par
+//     le relais), avec deux anti-rebond séparés qui ne se voyaient pas.
+//
+// Le bloc est conservé en commentaire pour pouvoir revenir en arrière ; le
+// gestionnaire 'push' du service worker est neutralisé de la même façon.
+/*
 function triggerPush(tag, title, body) {
   if (Notification.permission === 'granted') {
     const now = Date.now();
@@ -2619,120 +3090,67 @@ function checkBothMagazinesEmpty() {
     bothMagazinesEmptyNotified = false;
   }
 }
+*/
 
 // ============================================================
-// RAPPORT QUOTIDIEN DES BÛCHES
+// RAPPORT QUOTIDIEN DES BÛCHES — piloté par le poêle
 // ============================================================
-// Une notification par jour, à l'heure choisie, avec l'état des bûches et la
-// température — seulement si le poêle est en marche (état "auto"). La notification
-// est générée localement depuis les dernières données MQTT : elle ne peut donc
-// partir que si l'app tourne (ouverte ou en arrière-plan) à l'heure choisie.
-function initDailyReport() {
-  const saved = JSON.parse(localStorage.getItem(LS_DAILY) || 'null');
-  if (saved && typeof saved === 'object') {
-    dailyReport.enabled  = !!saved.enabled;
-    if (/^\d{2}:\d{2}$/.test(saved.time || '')) dailyReport.time = saved.time;
-    dailyReport.lastSent = saved.lastSent || '';
-  }
+// Le poêle envoie le rapport via ntfy une fois par jour à l'heure choisie, et
+// uniquement s'il tourne en automatique. L'app ne fait que régler : cmd/daily_report
+// ("1,HH:MM" / "0,HH:MM", non retenu — le poêle garde le réglage en NVS) et
+// affiche l'écho retenu status/daily_report {en, t}. L'ancienne version locale
+// (notification de l'app + relais) a été retirée en juil. 2026 ; voir l'historique git.
+
+function applyDailyReport(payload) {
+  let d;
+  try { d = JSON.parse(payload); } catch (e) { return; }
+  if (!d || typeof d !== 'object') return;
+  dailyReport.enabled = !!d.en;
+  if (/^\d{2}:\d{2}$/.test(d.t || '')) dailyReport.time = d.t;
+  const block = document.getElementById('daily-report-block');
+  if (block) block.style.display = '';
   const tog = document.getElementById('tog-daily-report');
   const inp = document.getElementById('daily-report-time');
   if (tog) tog.checked = dailyReport.enabled;
-  if (inp) inp.value   = dailyReport.time;
+  if (inp && document.activeElement !== inp) inp.value = dailyReport.time;
   updateDailyReportStatus();
-  // Vérifie chaque minute — l'intervalle survit à la mise en veille de l'onglet
-  // et rattrape l'heure exacte tant que l'app reste chargée.
-  if (dailyReportTimer) clearInterval(dailyReportTimer);
-  dailyReportTimer = setInterval(checkDailyReport, 30_000);
 }
 
-function persistDailyReport() {
-  localStorage.setItem(LS_DAILY, JSON.stringify(dailyReport));
+function sendDailyReport() {
+  publish('cmd/daily_report', (dailyReport.enabled ? '1' : '0') + ',' + dailyReport.time);
 }
 
-async function setDailyReportEnabled(on) {
+function setDailyReportEnabled(on) {
   dailyReport.enabled = on;
-  // Nouvelle activation : autorise un envoi aujourd'hui même si un précédent
-  // rapport avait déjà été marqué comme envoyé.
-  if (on) dailyReport.lastSent = '';
-  persistDailyReport();
   updateDailyReportStatus();
-  // La livraison app fermée passe par le relais, qui a besoin d'un abonnement
-  // push. À l'activation, on s'assure que les notifications push sont actives
-  // (demande la permission + abonne) puis on enregistre l'horaire côté relais.
-  if (on && !_pushSub) {
-    await enablePushNotifications();
-  }
-  syncDailyToRelay();
+  sendDailyReport();
 }
 
 function setDailyReportTime(t) {
   if (!/^\d{2}:\d{2}$/.test(t)) return;
   dailyReport.time = t;
-  dailyReport.lastSent = '';   // change d'heure → l'envoi du jour redevient possible
-  persistDailyReport();
   updateDailyReportStatus();
-  syncDailyToRelay();
-}
-
-// Enregistre l'horaire du rapport quotidien sur le relais (livraison app fermée).
-// Sans abonnement push (_pushSub), le relais n'a rien à qui envoyer → on saute.
-function syncDailyToRelay() {
-  if (!_pushSub) return;
-  const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone) || 'UTC';
-  fetch(`${RELAY_URL}/daily`, {
-    method: 'POST', headers: RELAY_HEADERS,
-    body: JSON.stringify({
-      endpoint: _pushSub.endpoint,
-      enabled:  dailyReport.enabled,
-      time:     dailyReport.time,
-      tz
-    })
-  }).catch(() => {});
+  sendDailyReport();
 }
 
 function updateDailyReportStatus() {
   const el = document.getElementById('daily-report-status');
   if (!el) return;
-  if (!dailyReport.enabled) { el.textContent = ''; return; }
-  el.textContent = 'Rapport prévu chaque jour à ' + dailyReport.time
-                 + (dailyReport.lastSent === todayStr() ? ' · envoyé aujourd’hui ✓' : '');
+  // En chargement manuel le poêle n'envoie pas le rapport : il compte les
+  // bûches des cassettes, vides par définition dans ce mode. Le réglage est
+  // conservé et reprend dès le retour en automatique.
+  el.textContent = !dailyReport.enabled ? ''
+    : feedManual ? 'En pause pendant le chargement manuel'
+    : 'Rapport envoyé chaque jour à ' + dailyReport.time + ' via ntfy';
 }
 
-function todayStr() {
-  const n = new Date();
-  return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0')
-       + '-' + String(n.getDate()).padStart(2, '0');
-}
-
-function checkDailyReport() {
-  if (!dailyReport.enabled) return;
-  const now = new Date();
-  const cur = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-  if (cur !== dailyReport.time) return;
-  if (dailyReport.lastSent === todayStr()) return;
-  // Condition : le poêle doit être en marche (automatique) — pas démarrage,
-  // refroidissement, veille ni défaut. Si ce n'est pas le cas à l'heure prévue,
-  // on ne marque rien : un nouvel essai est possible tant que la minute dure.
-  if (systemState !== 'auto') return;
-
-  dailyReport.lastSent = todayStr();
-  persistDailyReport();
-  const total = logL + logR;
-  triggerPush('daily-report', '⏱️ ' + formatTimeLeft(total) + ' restant',
-    'G : ' + logL + ' · R : ' + logR);
-  updateDailyReportStatus();
-}
-
-// 40 min de combustion estimée par bûche (les deux côtés confondus).
-function formatTimeLeft(logs) {
-  const mins = logs * 40;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  if (h === 0) return m + ' min';
-  if (m === 0) return h + ' h';
-  return h + ' h ' + m + ' min';
-}
-
+// ============================================================
+// ABONNEMENT PUSH (relais + service worker) — DÉSACTIVÉ (juil. 2026)
+// ============================================================
+// Plus aucun abonnement push n'est créé : le poêle envoie ses alertes par ntfy,
+// sans passer par le relais ni par le service worker. Conservé en commentaire
+// pour pouvoir revenir en arrière.
+/*
 async function enablePushNotifications() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     updatePushStatus('unsupported'); return;
@@ -2747,7 +3165,11 @@ async function enablePushNotifications() {
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(key)
     });
-    const serial = document.getElementById('cfg-serial')?.value || cfg.serial || 'JJQF9D';
+    // Même normalisation qu'à la connexion : le relais range les abonnements par
+    // numéro de série, donc une casse différente ici créerait un deuxième poêle
+    // fantôme dans son magasin et les notifications n'arriveraient jamais.
+    const serial = normalizeSerial(document.getElementById('cfg-serial')?.value)
+                   || cfg.serial || 'JJQF9D';
     // Enregistre aussi l'horaire du rapport quotidien dès l'abonnement (le relais
     // n'appliquera l'envoi que si enabled=true).
     const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone) || 'UTC';
@@ -2779,25 +3201,29 @@ async function disablePushNotifications() {
   localStorage.removeItem(LS_PUSH);
   updatePushStatus('disabled');
 }
+*/
+// ── fin du bloc « abonnement push » désactivé ──
 
+// Demande au poêle d'envoyer une notification ntfy de test. C'est le poêle qui
+// émet — l'app ne fait que transmettre l'ordre — donc le test échoue forcément
+// si le poêle n'est pas connecté au courtier. On le dit clairement plutôt que
+// d'afficher un faux succès.
 async function testPushNotification() {
   const btn = document.getElementById('push-test-btn');
+  if (!client || !client.connected) {
+    btn.textContent = '⚠️ Poêle hors ligne — test impossible';
+    setTimeout(() => { btn.textContent = '🧪 Envoyer une notification test'; }, 5000);
+    return;
+  }
   btn.textContent = 'Envoi…';
   btn.disabled = true;
-  try {
-    const serial = document.getElementById('cfg-serial')?.value || cfg.serial || 'JJQF9D';
-    const res = await fetch(`${RELAY_URL}/test`, {
-      method: 'POST', headers: RELAY_HEADERS,
-      body: JSON.stringify({ serial })
-    });
-    const data = await res.json();
-    btn.textContent = data.ok ? '✅ Envoyé ! Vérifiez votre téléphone' : `⚠️ ${data.reason}`;
-  } catch(e) {
-    btn.textContent = '⚠️ Échec — le relais est-il actif ?';
-  }
-  setTimeout(() => { btn.textContent = '🧪 Envoyer une notification test'; btn.disabled = false; }, 4000);
+  client.publish(prefix + '/cmd/push_test', '1', { qos:1 });
+  btn.textContent = '✅ Demandé — vérifiez l\'application ntfy';
+  setTimeout(() => { btn.textContent = '🧪 Envoyer une notification test'; btn.disabled = false; }, 6000);
 }
 
+// Conservé : encore appelé par le bloc push désactivé si on le réactive, et
+// inoffensif ici (les boutons activer/désactiver n'existent plus dans le DOM).
 function updatePushStatus(state) {
   const el   = document.getElementById('push-notif-status');
   const btn  = document.getElementById('push-enable-btn');
@@ -2818,21 +3244,91 @@ function updatePushStatus(state) {
   if (btnT) btnT.style.display = on ? 'block' : 'none';
 }
 
+/*
 function urlBase64ToUint8Array(base64) {
   const pad = '='.repeat((4 - base64.length % 4) % 4);
   const b64 = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/');
   return Uint8Array.from(atob(b64), c => c.charCodeAt(0));
 }
+*/
+
+// ============================================================
+// LIEN D'ABONNEMENT NTFY
+// ============================================================
+// Le poêle publie son adresse ntfy en retained sur status/ntfy_link, donc elle
+// arrive dès la connexion sans que le poêle ait à être réveillé. Elle contient
+// un secret propre à chaque poêle : c'est le lien qui fait office de mot de
+// passe, d'où l'absence d'affichage tant qu'on ne l'a pas reçu.
+//
+// Abonnement par l'application téléphone uniquement : sur ordinateur, ntfy ne
+// notifie que navigateur ouvert, ce qui ne sert à rien pour un poêle.
+// L'application demande le NOM du sujet (pas l'URL) dans son bouton « + ».
+// Android sait aussi s'abonner par lien ntfy://hôte/sujet ; iOS ne documente
+// pas ce lien, on ne le propose donc que sur Android.
+let ntfyLink  = '';   // https://ntfy.sh/<sujet>, tel que publié par le poêle
+let ntfyTopic = '';
+
+function setNtfyLink(url) {
+  ntfyLink  = (url || '').trim();
+  ntfyTopic = '';
+  let host  = '';
+  try { const u = new URL(ntfyLink); host = u.host; ntfyTopic = u.pathname.replace(/^\/+|\/+$/g, ''); }
+  catch(e) { ntfyLink = ''; }
+  document.getElementById('ntfy-topic-box').textContent = ntfyTopic || '—';
+  const dl = document.getElementById('ntfy-deeplink');
+  dl.href = ntfyTopic ? 'ntfy://' + host + '/' + ntfyTopic + '?display=WoodMood' : '#';
+  dl.style.display = (ntfyTopic && /Android/i.test(navigator.userAgent)) ? '' : 'none';
+  document.getElementById('ntfy-unavail').textContent = 'Notifications indisponibles sur ce poêle.';
+  renderNtfy();
+}
+
+function renderNtfy() {
+  const ready = !!ntfyTopic;
+  document.getElementById('ntfy-panel-phone').classList.toggle('show', ready);
+  document.getElementById('ntfy-unavail').style.display = ready ? 'none' : '';
+}
+
+async function copyNtfyTopic() {
+  if (!ntfyTopic) return;
+  try {
+    await navigator.clipboard.writeText(ntfyTopic);
+    showToast('Nom copié — collez-le dans ntfy');
+  } catch(e) {
+    // Presse-papiers refusé (http, permissions) : on sélectionne le texte
+    // affiché pour que l'utilisateur puisse le copier à la main.
+    const box = document.getElementById('ntfy-topic-box');
+    const r = document.createRange(); r.selectNodeContents(box);
+    const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    showToast('Copie impossible — le nom est sélectionné, copiez-le à la main');
+  }
+}
 
 // ============================================================
 // SERVICE WORKER (PWA)
 // ============================================================
+// Enregistré uniquement pour l'installation PWA / le cache. L'abonnement push
+// n'est plus rétabli au démarrage : les alertes passent par ntfy.
+//
+// MIGRATION — indispensable, pas cosmétique : le relais continue d'écouter le
+// MQTT et de pousser vers TOUS les abonnements déjà enregistrés. Se contenter
+// de ne plus en créer de nouveaux ne suffit donc pas : les téléphones déjà
+// abonnés continueraient de recevoir les anciennes alertes (dont « cassette
+// vide » côté par côté) en plus des notifications ntfy. On désinscrit donc
+// l'abonnement existant, une fois, au premier chargement de cette version.
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js').then(async reg => {
-    const existing = await reg.pushManager.getSubscription();
-    if (existing && localStorage.getItem(LS_PUSH)) {
-      _pushSub = existing;
-      updatePushStatus('enabled');
+    try {
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) {
+        await fetch(`${RELAY_URL}/subscribe`, {
+          method: 'DELETE', headers: RELAY_HEADERS,
+          body: JSON.stringify({ endpoint: existing.endpoint })
+        }).catch(() => {});      // le relais peut être injoignable : on désinscrit quand même
+        await existing.unsubscribe().catch(() => {});
+      }
+      localStorage.removeItem(LS_PUSH);
+    } catch(e) {
+      console.warn('Nettoyage de l\'ancien abonnement push impossible:', e);
     }
   });
 }
