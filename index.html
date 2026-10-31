@@ -643,14 +643,19 @@
         <div style="font-size:.78rem;color:#888">Le poêle régule la température comme d'habitude, mais c'est vous qui rechargez : quand une bûche est nécessaire, il sonne et vous prévient au lieu de la charger lui-même.</div>
         <div id="feed-mode-note" style="font-size:.78rem;font-weight:600;color:#b9770e;margin-top:6px;min-height:1.1em"></div>
 
-        <!-- ── Mode silencieux ── -->
+        <!-- ── Mode silencieux ──
+             Masqué tant que le poêle n'a pas publié status/silence : un firmware
+             sans mode nuit ne répondrait jamais et l'interrupteur resterait
+             « Actif » pour rien. Voir applySilence(). -->
+        <div id="silence-row" style="display:none">
         <div class="divider" style="margin:16px 0 12px"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
           <span style="font-size:.85rem;font-weight:600;color:#5a3015">Mode silencieux</span>
           <label class="tgl"><input type="checkbox" id="silence-toggle" onchange="setSilenceMode(this.checked)"><span class="tgl-sl"></span></label>
         </div>
-        <div style="font-size:.78rem;color:#888">Met en pause les insertions de bûches et limite les ventilateurs à 35 % pour un fonctionnement discret. Se désactive automatiquement après 3 h.</div>
-        <div id="silence-remaining" style="font-size:.8rem;font-weight:600;color:#c0392b;margin-top:6px;min-height:1.1em"></div>
+        <div style="font-size:.78rem;color:#888">Pour la nuit : coupe le chargement des bûches et limite les ventilateurs à 35 % jusqu'à ce que le feu s'éteigne ; le poêle passe en refroidissement quand il descend sous 80 % de la consigne. Ne s'active que lorsque le poêle est en marche.</div>
+        <div id="silence-status" style="font-size:.8rem;font-weight:600;color:#c0392b;margin-top:8px;min-height:1.1em"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1128,7 +1133,7 @@ let lastKnownBleTemp   = null;   // dernière lecture BLE valide — affichée s
 // ── Verrou commande en attente — évite le rebond MQTT ──
 // Deux usages :
 //   lockField(f)        → verrou minuté simple : on ignore les échos pendant
-//                         PENDING_TTL ms (system_state, silence_mode).
+//                         PENDING_TTL ms (system_state).
 //   lockField(f, val)   → verrou « optimiste » : on affiche `val` tout de suite et
 //                         on ignore les échos JUSQU'À ce que le firmware confirme
 //                         cette valeur — puis on libère immédiatement (room_temp,
@@ -1392,7 +1397,11 @@ function saveAndConnect() {
 }
 
 function connect() {
-  prefix = 'WoodMood' + cfg.serial;
+  const newPrefix = 'WoodMood' + cfg.serial;
+  // Autre poêle : son firmware n'a peut-être pas le mode silencieux, on
+  // attend son propre status/silence avant de réafficher la ligne.
+  if (newPrefix !== silenceSeenFor) showSilenceRow(false);
+  prefix = newPrefix;
   setDotState('connecting');
 
   if (client) { try { client.end(true); } catch(e){} }
@@ -1564,6 +1573,10 @@ function onMessage(topic, payloadBuf) {
   }
   if (sub === 'status/ntfy_link') { setNtfyLink(payload); return; }
   if (sub === 'status/daily_report') { applyDailyReport(payload); return; }
+  // Mode silencieux — topic RETENU {on,pct,armed}, publié à la connexion, après
+  // chaque cmd/silence (même refusée) et à chaque changement côté poêle.
+  // pct = seuil de refroidissement, fixé à 80 % par le firmware (non réglable).
+  if (sub === 'status/silence') { applySilence(payload); return; }
   // Demande de rechargement (chargement manuel) — topic RETENU, publié par le
   // firmware uniquement sur changement d'état ou de numéro de rappel.
   if (sub === 'status/reload_req') { applyReloadReq(payload); return; }
@@ -1624,6 +1637,7 @@ function applyFull(d) {
   if (d.setpoint !== undefined) {
     setpointVal = parseFloat(d.setpoint);
     document.getElementById('setpoint-val').textContent = d.setpoint + '°';
+    renderSilence();
   }
   if (d.room_temp !== undefined) {
     const val = parseFloat(d.room_temp);
@@ -1717,32 +1731,8 @@ function applyFull(d) {
     if (s !== fwSchedSlot) { fwSchedSlot = s; updateSchedStatus(); }
   }
 
-  applyTechState(d);
   calcBurnTime();
   updateSystemState();
-}
-
-// ============================================================
-// SYNCHRONISATION MODE SILENCIEUX
-// ============================================================
-function applyTechState(d) {
-  if (d.silence_mode !== undefined && !isLocked('silence_mode')) {
-    const on = !!d.silence_mode;
-    document.getElementById('silence-toggle').checked = on;
-    renderSilenceRemaining(on ? (d.silence_remaining_s || 0) : 0);
-  }
-}
-
-// Affiche le décompte « se désactive dans … » sous l'interrupteur (vide si off).
-function renderSilenceRemaining(sec) {
-  const el = document.getElementById('silence-remaining');
-  if (!el) return;
-  sec = Number(sec) || 0;
-  if (sec <= 0) { el.textContent = ''; return; }
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const t = h > 0 ? (h + ' h ' + String(m).padStart(2, '0') + ' min') : (m + ' min');
-  el.textContent = 'Se désactive automatiquement dans ' + t;
 }
 
 // ============================================================
@@ -2228,11 +2218,64 @@ function calcBurnTime() {
 // ============================================================
 // MODE SILENCIEUX
 // ============================================================
+// Plus de minuterie : le poêle coupe le chargement et plafonne les ventilateurs
+// jusqu'à ce que le feu retombe sous `pct` % de la consigne (80 %, fixé par le
+// firmware), puis passe de
+// lui-même en refroidissement. Il efface le mode en arrivant en veille.
+// La vérité vient uniquement de status/silence (plus de silence_mode dans status/full).
+const silence = { on: false, pct: 80, armed: false };
+let silencePending = null;   // { want, expire } — dernière cmd/silence en attente de réponse
+// Préfixe du poêle dont on a reçu status/silence (retenu, donc livré dès
+// l'abonnement). Les firmwares d'avant le 27 oct. ne le publient pas : la ligne
+// reste alors masquée plutôt que d'afficher un interrupteur sans effet.
+let silenceSeenFor = null;
+
+function showSilenceRow(show) {
+  const row = document.getElementById('silence-row');
+  if (row) row.style.display = show ? '' : 'none';
+}
+
+function applySilence(payload) {
+  let d;
+  try { d = JSON.parse(payload); } catch (e) { return; }
+  if (!d || typeof d !== 'object') return;
+  silenceSeenFor = prefix;
+  showSilenceRow(true);
+  silence.on    = !!d.on;
+  silence.armed = !!d.armed;
+  if (Number.isFinite(d.pct)) silence.pct = d.pct;
+  // Le firmware répond à chaque cmd/silence, y compris par un refus (on:false).
+  if (silencePending) {
+    if (silencePending.want && !silence.on && Date.now() < silencePending.expire)
+      showToast('Mode silencieux refusé — le poêle doit être en marche');
+    silencePending = null;
+  }
+  const tog = document.getElementById('silence-toggle');
+  if (tog) tog.checked = silence.on;
+  renderSilence();
+}
+
+// Ligne d'état sous l'interrupteur : vide quand le mode est coupé.
+function renderSilence() {
+  const el = document.getElementById('silence-status');
+  if (!el) return;
+  if (!silence.on) { el.textContent = ''; return; }
+  const lim = setpointVal ? Math.round(setpointVal * silence.pct / 100) + ' °C'
+                          : silence.pct + ' % de la consigne';
+  el.textContent = silence.armed
+    ? 'Actif — refroidissement automatique dès que le feu passe sous ' + lim
+    : 'Actif — le feu monte encore ; refroidissement une fois retombé sous ' + lim;
+}
+
 function setSilenceMode(on) {
-  lockField('silence_mode');
+  // Pas de pré-contrôle local de l'état : status/full peut avoir 30 s de retard,
+  // le poêle tranche et répond sur status/silence (refus → toast + bascule).
+  silencePending = { want: on, expire: Date.now() + PENDING_TTL };
+  silence.on = on; silence.armed = false;   // optimiste jusqu'à la réponse du poêle
+  renderSilence();
   publish('cmd/silence', on ? '1' : '0');
-  renderSilenceRemaining(on ? 3 * 3600 : 0);   // décompte optimiste jusqu'à l'écho du poêle
-  showToast(on ? 'Mode silencieux activé — insertions en pause, ventilateurs à 35 %' : 'Mode silencieux désactivé');
+  showToast(on ? 'Mode silencieux activé — plus de chargement, ventilateurs à 35 % jusqu\'à extinction du feu'
+               : 'Mode silencieux désactivé');
 }
 
 // ============================================================
