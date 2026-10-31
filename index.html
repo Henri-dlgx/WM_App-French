@@ -643,11 +643,7 @@
         <div style="font-size:.78rem;color:#888">Le poêle régule la température comme d'habitude, mais c'est vous qui rechargez : quand une bûche est nécessaire, il sonne et vous prévient au lieu de la charger lui-même.</div>
         <div id="feed-mode-note" style="font-size:.78rem;font-weight:600;color:#b9770e;margin-top:6px;min-height:1.1em"></div>
 
-        <!-- ── Mode silencieux ──
-             Masqué tant que le poêle n'a pas publié status/silence : un firmware
-             sans mode nuit ne répondrait jamais et l'interrupteur resterait
-             « Actif » pour rien. Voir applySilence(). -->
-        <div id="silence-row" style="display:none">
+        <!-- ── Mode silencieux ── -->
         <div class="divider" style="margin:16px 0 12px"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
           <span style="font-size:.85rem;font-weight:600;color:#5a3015">Mode silencieux</span>
@@ -655,7 +651,6 @@
         </div>
         <div style="font-size:.78rem;color:#888">Pour la nuit : coupe le chargement des bûches et limite les ventilateurs à 35 % jusqu'à ce que le feu s'éteigne ; le poêle passe en refroidissement quand il descend sous 80 % de la consigne. Ne s'active que lorsque le poêle est en marche.</div>
         <div id="silence-status" style="font-size:.8rem;font-weight:600;color:#c0392b;margin-top:8px;min-height:1.1em"></div>
-        </div>
       </div>
     </div>
   </div>
@@ -1397,11 +1392,7 @@ function saveAndConnect() {
 }
 
 function connect() {
-  const newPrefix = 'WoodMood' + cfg.serial;
-  // Autre poêle : son firmware n'a peut-être pas le mode silencieux, on
-  // attend son propre status/silence avant de réafficher la ligne.
-  if (newPrefix !== silenceSeenFor) showSilenceRow(false);
-  prefix = newPrefix;
+  prefix = 'WoodMood' + cfg.serial;
   setDotState('connecting');
 
   if (client) { try { client.end(true); } catch(e){} }
@@ -2225,22 +2216,11 @@ function calcBurnTime() {
 // La vérité vient uniquement de status/silence (plus de silence_mode dans status/full).
 const silence = { on: false, pct: 80, armed: false };
 let silencePending = null;   // { want, expire } — dernière cmd/silence en attente de réponse
-// Préfixe du poêle dont on a reçu status/silence (retenu, donc livré dès
-// l'abonnement). Les firmwares d'avant le 27 oct. ne le publient pas : la ligne
-// reste alors masquée plutôt que d'afficher un interrupteur sans effet.
-let silenceSeenFor = null;
-
-function showSilenceRow(show) {
-  const row = document.getElementById('silence-row');
-  if (row) row.style.display = show ? '' : 'none';
-}
 
 function applySilence(payload) {
   let d;
   try { d = JSON.parse(payload); } catch (e) { return; }
   if (!d || typeof d !== 'object') return;
-  silenceSeenFor = prefix;
-  showSilenceRow(true);
   silence.on    = !!d.on;
   silence.armed = !!d.armed;
   if (Number.isFinite(d.pct)) silence.pct = d.pct;
